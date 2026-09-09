@@ -21,9 +21,22 @@ SEASON = int(os.environ.get("SEASON", "2026"))
 PRIOR = SEASON - 1
 OUT = os.environ.get("OUT", "data.json")
 
-# League-average fantasy value of one opportunity, recomputed each run from the
-# prior season. Converts carries and targets onto a single points scale.
-PPC_DEFAULT, PPT_DEFAULT, PPA_DEFAULT = 0.645, 1.705, 0.44
+# ── LEAGUE SCORING ──────────────────────────────────────────────────────────
+# Edit this to match your league. Everything downstream is computed from it:
+# points per game, expected points, the value of a carry vs a target, the
+# matchup ratings. Using the wrong settings quietly biases every number - a
+# half-PPR league that scores as full PPR systematically overrates pass
+# catchers, which is exactly the sort of error that never announces itself.
+SCORING = {
+    "pass_yd": 0.04, "pass_td": 4, "int": -1, "pass_2pt": 2, "pass_400_bonus": 3,
+    "rush_yd": 0.1, "rush_td": 6, "rush_2pt": 2, "rush_200_bonus": 3,
+    "rec": 0.5, "rec_yd": 0.1, "rec_td": 6, "rec_2pt": 2, "rec_200_bonus": 3,
+    "fumble_lost": -2, "return_td": 6,
+}
+
+# Fallbacks only; the real values are computed from the prior season under the
+# scoring above.
+PPC_DEFAULT, PPT_DEFAULT, PPA_DEFAULT = 0.5, 1.2, 0.42
 POS = ("QB", "RB", "WR", "TE")
 warnings = []
 
@@ -44,6 +57,29 @@ def fetch(url, required=False):
 
 def rows(text):
     return list(csv.DictReader(io.StringIO(text))) if text else []
+
+
+def score(r):
+    """Fantasy points for one player-game under SCORING, from raw stats."""
+    S = SCORING
+    py, ry, cy = num(r["passing_yards"]), num(r["rushing_yards"]), num(r["receiving_yards"])
+    pts = (py * S["pass_yd"] + num(r["passing_tds"]) * S["pass_td"]
+           + num(r.get("passing_interceptions", 0)) * S["int"]
+           + num(r.get("passing_2pt_conversions", 0)) * S["pass_2pt"]
+           + ry * S["rush_yd"] + num(r["rushing_tds"]) * S["rush_td"]
+           + num(r.get("rushing_2pt_conversions", 0)) * S["rush_2pt"]
+           + num(r["receptions"]) * S["rec"] + cy * S["rec_yd"]
+           + num(r["receiving_tds"]) * S["rec_td"]
+           + num(r.get("receiving_2pt_conversions", 0)) * S["rec_2pt"]
+           + num(r.get("special_teams_tds", 0)) * S["return_td"])
+    lost = (num(r.get("sack_fumbles_lost", 0)) + num(r.get("rushing_fumbles_lost", 0))
+            + num(r.get("receiving_fumbles_lost", 0)))
+    pts += lost * S["fumble_lost"]
+    # single-game yardage bonuses
+    if py >= 400: pts += S["pass_400_bonus"]
+    if ry >= 200: pts += S["rush_200_bonus"]
+    if cy >= 200: pts += S["rec_200_bonus"]
+    return pts
 
 
 def num(v):
@@ -116,10 +152,12 @@ def opportunity_values(weekly):
     tc = tt = ta = cp = rp = pp = 0.0
     for r in weekly:
         tc += num(r["carries"]); tt += num(r["targets"]); ta += num(r["attempts"])
-        cp += num(r["rushing_yards"]) * .1 + num(r["rushing_tds"]) * 6
-        rp += num(r["receptions"]) + num(r["receiving_yards"]) * .1 + num(r["receiving_tds"]) * 6
-        pp += num(r["passing_yards"]) * .04 + num(r["passing_tds"]) * 4 \
-              - num(r.get("passing_interceptions", 0)) * 2
+        S = SCORING
+        cp += num(r["rushing_yards"]) * S["rush_yd"] + num(r["rushing_tds"]) * S["rush_td"]
+        rp += (num(r["receptions"]) * S["rec"] + num(r["receiving_yards"]) * S["rec_yd"]
+               + num(r["receiving_tds"]) * S["rec_td"])
+        pp += (num(r["passing_yards"]) * S["pass_yd"] + num(r["passing_tds"]) * S["pass_td"]
+               + num(r.get("passing_interceptions", 0)) * S["int"])
     if tc < 100 or tt < 100 or ta < 100:
         return PPC_DEFAULT, PPT_DEFAULT, PPA_DEFAULT
     return round(cp / tc, 3), round(rp / tt, 3), round(pp / ta, 3)
@@ -136,7 +174,7 @@ def agg_player(weekly, ppc, ppt, ppa, weeks=None):
             continue
         a = out[key(r["player_display_name"])]
         a["g"] += 1
-        a["fp"] += num(r["fantasy_points_ppr"])
+        a["fp"] += score(r)
         a["car"] += num(r["carries"]); a["tar"] += num(r["targets"]); a["rec"] += num(r["receptions"])
         a["att"] += num(r["attempts"])
         a["pos"] = r["position"]; a["team"] = r["team"]; a["name"] = r["player_display_name"]
@@ -181,7 +219,7 @@ def defense_ratios(weekly, season_avg):
         base = season_avg.get(k)
         if not base or base["g"] < 3:
             continue
-        actual[d][pos] += num(r["fantasy_points_ppr"])
+        actual[d][pos] += score(r)
         expect[d][pos] += base["ppg"]
         n[d].add(int(r["week"]))
     out = {}
@@ -282,7 +320,7 @@ def main():
             "built": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "season": SEASON, "prior": PRIOR,
             "week": cur_week, "played": played,
-            "ppc": ppc, "ppt": ppt, "ppa": ppa,
+            "ppc": ppc, "ppt": ppt, "ppa": ppa, "scoring": SCORING,
             "defense_season": dfn_src,
             "warnings": warnings,
         },
@@ -298,6 +336,7 @@ def main():
     print(f"  players {len(players)} | defences {len(dfn)} | games {len(games)}")
     print(f"  season {SEASON} week {cur_week} | weeks played {played or 'none'}")
     print(f"  opportunity values: {ppc}/carry  {ppt}/target  {ppa}/pass attempt")
+    print(f"  scoring: {SCORING['rec']} per reception, {SCORING['int']} per interception")
     for w in warnings:
         print("  warning:", w)
 

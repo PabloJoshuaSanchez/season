@@ -116,6 +116,8 @@ def build_schedule():
         # spread_line is the HOME line: positive means the home team is favoured
         g = {"w": wk, "a": r["away_team"], "h": r["home_team"],
              "done": r["away_score"] not in ("", "NA")}
+        if g["done"]:
+            g["as"] = int(num(r["away_score"])); g["hs"] = int(num(r["home_score"]))
         if has:
             g["t"] = round(t, 1)
             g["s"] = round(s, 1)
@@ -161,6 +163,32 @@ def opportunity_values(weekly):
     if tc < 100 or tt < 100 or ta < 100:
         return PPC_DEFAULT, PPT_DEFAULT, PPA_DEFAULT
     return round(cp / tc, 3), round(rp / tt, 3), round(pp / ta, 3)
+
+
+def season_totals(weekly):
+    """Counting stats for the raw sheet - what actually happened, not a rate."""
+    out = defaultdict(lambda: [0] * 14)
+    for r in weekly:
+        if r.get("position") not in POS:
+            continue
+        a = out[key(r["player_display_name"])]
+        a[0] += 1
+        a[1] += int(num(r.get("completions", 0)))
+        a[2] += int(num(r.get("attempts", 0)))
+        a[3] += int(num(r["passing_yards"]))
+        a[4] += int(num(r["passing_tds"]))
+        a[5] += int(num(r.get("passing_interceptions", 0)))
+        a[6] += int(num(r["carries"]))
+        a[7] += int(num(r["rushing_yards"]))
+        a[8] += int(num(r["rushing_tds"]))
+        a[9] += int(num(r["targets"]))
+        a[10] += int(num(r["receptions"]))
+        a[11] += int(num(r["receiving_yards"]))
+        a[12] += int(num(r["receiving_tds"]))
+        a[13] += round(score(r), 1)
+    for k in out:
+        out[k][13] = round(out[k][13], 1)
+    return dict(out)
 
 
 def agg_player(weekly, ppc, ppt, ppa, weeks=None):
@@ -232,6 +260,48 @@ def defense_ratios(weekly, season_avg):
     return out
 
 
+def depth_chart(season):
+    """
+    Latest depth-chart snapshot per player, plus roster status.
+
+    This is the fix for the biggest weakness in projecting off last season:
+    a player's old numbers describe the role he had, not the one he has. Carson
+    Wentz put up starter numbers filling in during 2025 and is QB3 in Minnesota
+    now; Tyler Shough is New Orleans' QB1. Without this the model ranks them
+    backwards.
+    """
+    txt = fetch(f"{BASE}/depth_charts/depth_charts_{season}.csv")
+    ranks = {}
+    if txt:
+        newest = {}
+        for r in rows(txt):
+            if r.get("pos_abb") not in POS:
+                continue
+            k = key(r.get("player_name", ""))
+            dt = r.get("dt", "")
+            if k not in newest or dt > newest[k][0]:
+                try:
+                    rk = int(float(r.get("pos_rank") or 99))
+                except Exception:
+                    rk = 99
+                newest[k] = (dt, rk, r.get("team", ""), r.get("pos_abb", ""))
+        for k, v in newest.items():
+            ranks[k] = {"rank": v[1], "team": v[2], "pos": v[3]}
+    else:
+        warnings.append(f"no {season} depth charts - role adjustments are off, so "
+                        "players who changed jobs will look like their old selves")
+
+    txt = fetch(f"{BASE}/rosters/roster_{season}.csv")
+    status = {}
+    if txt:
+        for r in rows(txt):
+            if r.get("position") not in POS:
+                continue
+            status[key(r.get("full_name", ""))] = {
+                "st": r.get("status", ""), "team": r.get("team", "")}
+    return ranks, status
+
+
 def snap_shares(season):
     txt = fetch(f"{BASE}/snap_counts/snap_counts_{season}.csv")
     if not txt:
@@ -284,6 +354,8 @@ def main():
             "Trends and matchup ratings sharpen from about week 4.")
 
     cur = agg_player(cur_weekly, ppc, ppt, ppa) if cur_weekly else {}
+    prior_tot = season_totals(prior_weekly)
+    cur_tot = season_totals(cur_weekly) if cur_weekly else {}
     recent = agg_player(cur_weekly, ppc, ppt, ppa, weeks=set(played[-3:])) if played else {}
     dfn = defense_ratios(cur_weekly, cur) if len(played) >= 3 else defense_ratios(prior_weekly, prior)
     dfn_src = SEASON if len(played) >= 3 else PRIOR
@@ -291,6 +363,7 @@ def main():
         warnings.append(f"matchup ratings still use {PRIOR} defences - they switch "
                         f"to {SEASON} once three weeks are played")
 
+    depth, status = depth_chart(SEASON)
     snaps_cur, snapweek = snap_shares(SEASON)
     snaps_prior, _ = snap_shares(PRIOR)
     inj = injuries(SEASON)
@@ -313,6 +386,21 @@ def main():
             rec["sn"] = sn
         if k in inj:
             rec["inj"] = [inj[k]["s"], inj[k]["p"]]
+        d = depth.get(k)
+        if d:
+            rec["d"] = d["rank"]
+            if d["team"]:
+                rec["team"] = d["team"]          # depth chart is the current truth
+        s = status.get(k)
+        if s:
+            rec["st"] = s["st"]
+            if s["team"] and not d:
+                rec["team"] = s["team"]
+        # season counting totals, for the raw stats sheet
+        src = cur_tot.get(k) or prior_tot.get(k)
+        if src:
+            rec["t"] = src
+            rec["tsrc"] = SEASON if k in cur_tot else PRIOR
         players[k] = rec
 
     data = {
@@ -322,6 +410,9 @@ def main():
             "week": cur_week, "played": played,
             "ppc": ppc, "ppt": ppt, "ppa": ppa, "scoring": SCORING,
             "defense_season": dfn_src,
+            "depth": len(depth), "roster_status": len(status),
+            "tot_cols": ["g","cmp","att","pass_yd","pass_td","int","car","rush_yd",
+                         "rush_td","tgt","rec","rec_yd","rec_td","pts"],
             "warnings": warnings,
         },
         "players": players,
@@ -334,6 +425,7 @@ def main():
     size = os.path.getsize(OUT) / 1024
     print(f"wrote {OUT}  {size:.0f} KB")
     print(f"  players {len(players)} | defences {len(dfn)} | games {len(games)}")
+    print(f"  depth-chart ranks {len(depth)} | roster statuses {len(status)}")
     print(f"  season {SEASON} week {cur_week} | weeks played {played or 'none'}")
     print(f"  opportunity values: {ppc}/carry  {ppt}/target  {ppa}/pass attempt")
     print(f"  scoring: {SCORING['rec']} per reception, {SCORING['int']} per interception")

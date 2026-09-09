@@ -1,0 +1,54 @@
+name: Refresh season data
+
+# Tuesday 11:00 UTC — after Monday night finishes and nflverse has published.
+# Also runnable by hand from the Actions tab, which is what you want the first
+# time and any week something looks wrong.
+on:
+  schedule:
+    - cron: "0 11 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build data.json
+        run: python build_data.py
+        env:
+          SEASON: "2026"
+
+      - name: Fail if the file looks wrong
+        run: |
+          # A truncated or empty build is worse than a stale one, because the
+          # app would show confident nonsense. Refuse to commit it.
+          python - <<'EOF'
+          import json, sys, os
+          size = os.path.getsize("data.json") / 1024
+          d = json.load(open("data.json"))
+          players = len(d.get("players", {}))
+          games = len(d.get("games", []))
+          print(f"{size:.0f} KB | {players} players | {games} games")
+          if size < 20 or players < 300 or games < 200:
+              sys.exit("data.json failed its sanity check — not committing")
+          EOF
+
+      - name: Commit if changed
+        run: |
+          git config user.name "season-data-bot"
+          git config user.email "actions@github.com"
+          if git diff --quiet data.json; then
+            echo "no change this run"
+          else
+            git add data.json
+            git commit -m "data refresh $(date -u +%Y-%m-%d)"
+            git push
+          fi

@@ -633,6 +633,7 @@
     <div class="tab on" data-t="week">This week</div>
     <div class="tab" data-t="compare">Compare</div>
     <div class="tab" data-t="trends">Trends</div>
+    <div class="tab" data-t="waivers">Waivers</div>
     <div class="tab" data-t="matchups">Matchups</div>
     <div class="tab" data-t="setup">Setup</div>
   </div>
@@ -673,6 +674,28 @@
   <div class="card">
     <div class="ch"><h3>Roles on the move</h3><button class="info" data-info="trends">i</button></div>
     <div class="cb tight" id="trendList"></div>
+  </div>
+</div>
+
+<div class="panel" id="p-waivers" hidden>
+  <div class="card">
+    <div class="cb" style="padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <button class="btn s" data-wv="ALL" id="wvALL">All</button>
+      <button class="btn s g" data-wv="QB">QB</button>
+      <button class="btn s g" data-wv="RB">RB</button>
+      <button class="btn s g" data-wv="WR">WR</button>
+      <button class="btn s g" data-wv="TE">TE</button>
+      <input class="sfi" id="wvSearch" type="text" placeholder="Search..." style="flex:1;min-width:120px;min-height:34px;font-size:14px;padding:7px 10px;">
+      <button class="info" data-info="waivers">i</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Best available</h3><span class="cx" id="wvCx"></span></div>
+    <div class="cb tight" id="wvList"></div>
+  </div>
+  <div class="card" id="dropCard">
+    <div class="ch"><h3>Who you'd drop</h3><button class="info" data-info="drops">i</button></div>
+    <div class="cb tight" id="dropList"></div>
   </div>
 </div>
 
@@ -722,6 +745,17 @@
         <button data-sz="0.92">S</button><button data-sz="1" class="on">M</button>
         <button data-sz="1.12">L</button><button data-sz="1.28">XL</button>
       </span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>League scoring</h3><button class="info" data-info="scoring">i</button></div>
+    <div class="cb"><div id="scoreGrid" class="mxgrid"></div>
+      <div style="font-size:10.5px;color:var(--dimr);margin-top:10px;line-height:1.55;">
+        Every number in the app is computed under these settings &mdash; points per game,
+        expected points, the relative value of a carry against a target, the matchup ratings.
+        If any of it is wrong, change <b>SCORING</b> at the top of <b>build_data.py</b> and
+        re-run the action.
+      </div>
     </div>
   </div>
   <div class="card">

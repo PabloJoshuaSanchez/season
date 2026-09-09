@@ -35,6 +35,7 @@ var INFO={
  waivers:"<p>Everyone not on any of the twelve imported rosters, ranked by <b>opportunity</b> rather than name recognition. That is the whole point: the players worth adding are the ones whose usage has outgrown their reputation.</p><p>The score blends expected points from recent volume, the next three weeks of matchups and game environment, and role security from snap share. A rising target share counts for more than a big box score.</p><p>Anyone the import could not match &mdash; defences, kickers, players with no NFL snaps &mdash; is invisible here. They are not necessarily free.</p>",
  drops:"<p>Your roster sorted by what each player is projected to contribute the rest of the way, worst first, with byes and injuries flagged.</p><p>It is a prompt, not an instruction. A stashed handcuff or a player returning from injury is worth more than his current projection says, and the model has no idea about either.</p>",
  scoring:"<p>Your league's settings, as used in every calculation. Half PPR changes things more than people expect: a target is worth about 20% less than in full PPR, which moves value from high-volume receivers toward backs and quarterbacks.</p><p>Ja'Marr Chase alone is worth nearly four points a game less here than he would be in full PPR.</p>",
+ stats:"<p>Counting stats for the season the data covers &mdash; not rates, not projections, just what happened. Sortable by any column.</p><p>Until the current season has games, this shows last season. The header says which.</p>",
  sources:"<p>Everything comes from nflverse's public data and the open schedule file. No accounts, no private endpoints, nothing that breaks when a fantasy site changes its site.</p><p>A scheduled job rebuilds the data every Tuesday. If it fails or the file goes stale, a banner appears at the top rather than the app quietly showing you last week's numbers.</p>"
 };
 
@@ -64,7 +65,7 @@ function ready(){
 function redraw(){
   drawHeader(); drawLineup(); drawBench(); drawFlex();
   drawCompareOptions(); drawCompare(); drawTrends(); drawEnv(); drawDef();
-  drawWaivers(); drawDrops(); drawScoring();
+  drawWaivers(); drawDrops(); drawScoring(); drawStats(); drawScoreboard();
 }
 
 // ── helpers ────────────────────────────────────────────────
@@ -96,6 +97,26 @@ function oppOf(t,wk){
 }
 var LEAGUE_AVG_IMPLIED=22.5;
 
+// ── role adjustment ────────────────────────────────────────
+// Last season's numbers describe the job a player HAD. Depth-chart rank says
+// what he has now. Without this the model ranks a fill-in starter who is now a
+// third-stringer above the man who actually took the job.
+// Backups matter very differently by position: a QB2 scores nothing, a WR2
+// scores plenty, so each position gets its own curve.
+var ROLE={QB:[1,.12,.05,.03], RB:[1,.60,.30,.15], WR:[1,.92,.72,.45,.25], TE:[1,.45,.20,.12]};
+function roleMult(p){
+  if(p.d===undefined) return {m:1,w:0,rank:null};
+  var curve=ROLE[p.pos]||[1,.8,.5,.3];
+  var raw=curve[Math.min(curve.length-1,Math.max(0,p.d-1))];
+  // The depth chart matters most in week 1, when guesswork is all there is.
+  // Once a player has real current-season usage, that usage is the better
+  // evidence and this fades back.
+  var g=(p.s&&p.s[0])||0;
+  var w=Math.max(.2,1-g/8);
+  return {m:1+(raw-1)*w, w:w, rank:p.d, raw:raw};
+}
+function isInactive(p){ return p.st==='CUT'||p.st==='RET'||p.st==='RES'; }
+
 // ── the model ──────────────────────────────────────────────
 // projection = recent expected points x matchup x game environment,
 // each multiplier clamped so one input can't run away with the answer.
@@ -113,19 +134,26 @@ function project(k,wk){
       mEnv=Math.max(.85,Math.min(1.18,o.implied/LEAGUE_AVG_IMPLIED));
     }
   }
-  var proj=base*mMatch*mEnv;
+  var role=roleMult(p);
+  var proj=base*mMatch*mEnv*role.m;
   // regression gap: scoring far above your own usage is not a repeatable skill
   var gap=(ppg&&xfp)?ppg-xfp:0;
   var conf = g>=10?'hi':g>=5?'md':'lo';
   if(!p.r&&!p.s) conf = (g>=10?'md':'lo');   // prior-season only
+  if(role.rank&&role.rank>1&&conf==='hi') conf='md';
   return {k:k,p:p,proj:Math.round(proj*10)/10,base:base,mMatch:mMatch,mEnv:mEnv,
           dr:dr,o:o,gap:Math.round(gap*10)/10,conf:conf,g:g,src:statSrc(p),st:st,
-          bye:!o};
+          bye:!o,role:role};
 }
 function why(r){
   var out=[];
   if(r.bye){ out.push('<b>On bye</b> this week'); return out; }
   var st=r.st;
+  if(isInactive(r.p)) out.push('<b>'+esc(r.p.st)+'</b> — not on an active roster');
+  if(r.role.rank){
+    if(r.role.rank===1) out.push('listed <b>'+r.p.pos+'1</b> on the depth chart');
+    else out.push('listed <b>'+r.p.pos+r.role.rank+'</b> — last season\'s numbers came from a different role');
+  }
   if(st[5]>=25) out.push('commands <b>'+st[5].toFixed(0)+'%</b> of his team\'s targets');
   else if(st[3]>=14) out.push('<b>'+st[3].toFixed(1)+'</b> touches a game');
   if(r.dr!==null&&r.dr>=1.12) out.push('faces a defence giving up <b>'+Math.round((r.dr-1)*100)+'% more</b> than normal to '+r.p.pos+'s');
@@ -216,7 +244,7 @@ function drawLineup(){
       '<span class="slotlab">'+f.slot+'</span>'+
       '<div class="slotmain"><div class="slotname">'+esc(r.p.name)+
         ' <span class="conf '+r.conf+'">'+r.conf.toUpperCase()+'</span></div>'+
-      '<div class="slotmeta">'+r.p.pos+' '+r.p.team+
+      '<div class="slotmeta">'+r.p.pos+(r.p.d?r.p.d:'')+' '+r.p.team+
         (r.o?' &middot; '+(r.o.home?'vs ':'@ ')+r.o.opp+
              (r.o.implied!==undefined&&r.o.implied!==null?' &middot; '+r.o.implied.toFixed(1)+' implied':''):' &middot; bye')+
         ' &middot; '+r.src+'</div>'+
@@ -248,7 +276,7 @@ function drawFlex(){
     return '<div class="slotrow" style="border-left-color:'+COL[r.p.pos]+'">'+
       '<span class="slotlab">'+(i+1)+'</span>'+
       '<div class="slotmain"><div class="slotname">'+esc(r.p.name)+'</div>'+
-      '<div class="slotmeta">'+r.p.pos+' '+r.p.team+(r.o?' '+(r.o.home?'vs ':'@ ')+r.o.opp:'')+
+      '<div class="slotmeta">'+r.p.pos+(r.p.d?r.p.d:'')+' '+r.p.team+(r.o?' '+(r.o.home?'vs ':'@ ')+r.o.opp:'')+
         ' &middot; matchup &times;'+r.mMatch.toFixed(2)+' &middot; environment &times;'+r.mEnv.toFixed(2)+'</div>'+
       '<div class="sigbar"><span class="sig"><span style="width:'+(r.proj/mx*100)+'%;background:'+COL[r.p.pos]+'"></span></span></div>'+
       '</div><span class="proj">'+r.proj.toFixed(1)+'<span class="proju">proj</span></span></div>';
@@ -265,7 +293,7 @@ function drawBench(){
     return '<div class="slotrow benchrow" style="border-left-color:'+COL[r.p.pos]+'">'+
       '<span class="slotlab">BN</span><div class="slotmain">'+
       '<div class="slotname">'+esc(r.p.name)+'</div>'+
-      '<div class="slotmeta">'+r.p.pos+' '+r.p.team+(r.bye?' &middot; bye':(r.o?' '+(r.o.home?'vs ':'@ ')+r.o.opp:''))+'</div>'+
+      '<div class="slotmeta">'+r.p.pos+(r.p.d?r.p.d:'')+' '+r.p.team+(r.bye?' &middot; bye':(r.o?' '+(r.o.home?'vs ':'@ ')+r.o.opp:''))+'</div>'+
       '</div><span class="proj">'+(r.bye?'—':r.proj.toFixed(1))+'<span class="proju">proj</span></span></div>';
   }).join('');
 }
@@ -463,7 +491,7 @@ function drawWaivers(){
     return '<div class="slotrow" style="border-left-color:'+COL[r.p.pos]+'">'+
       '<span class="slotlab">'+(i+1)+'</span>'+
       '<div class="slotmain"><div class="slotname">'+esc(r.p.name)+'</div>'+
-      '<div class="slotmeta">'+r.p.pos+' '+r.p.team+
+      '<div class="slotmeta">'+r.p.pos+(r.p.d?r.p.d:'')+' '+r.p.team+
         (nx?' &middot; '+(nx.home?'vs ':'@ ')+nx.opp:' &middot; bye')+
         ' &middot; '+r.st[0]+'g '+statSrc(r.p)+' &middot; '+r.f.toFixed(1)+' proj</div>'+
       (reasons.length?'<div class="slotwhy">'+reasons.slice(0,3).join(' &middot; ')+'</div>':'')+
@@ -512,6 +540,88 @@ function drawScoring(){
       return '<div class="mxr"><span>'+r[0]+'</span><span class="mxv">'+r[1]+'</span></div>';
     }).join('')+'</div>';
   }).join('');
+}
+
+// ── raw stats sheet ────────────────────────────────────────
+var stPos='QB', stSearch='', stRostOnly=false, stSort='pts', stDir=-1;
+var STCOLS={
+  QB:[['name','Player'],['team','Tm'],['d','Dep'],['g','G'],['cmp','Cmp'],['att','Att'],
+      ['pass_yd','Yds'],['pass_td','TD'],['int','Int'],['car','Car'],['rush_yd','RuYd'],
+      ['rush_td','RuTD'],['pts','Pts']],
+  RB:[['name','Player'],['team','Tm'],['d','Dep'],['g','G'],['car','Car'],['rush_yd','Yds'],
+      ['rush_td','TD'],['tgt','Tgt'],['rec','Rec'],['rec_yd','ReYd'],['rec_td','ReTD'],['pts','Pts']],
+  WR:[['name','Player'],['team','Tm'],['d','Dep'],['g','G'],['tgt','Tgt'],['rec','Rec'],
+      ['rec_yd','Yds'],['rec_td','TD'],['car','Car'],['rush_yd','RuYd'],['pts','Pts']],
+  TE:null
+};
+STCOLS.TE=STCOLS.WR;
+function statVal(p,id){
+  if(id==='name') return p.name;
+  if(id==='team') return p.team;
+  if(id==='d') return p.d===undefined?99:p.d;
+  var cols=D.meta.tot_cols||[];
+  var ix=cols.indexOf(id);
+  return (p.t&&ix>=0)?p.t[ix]:0;
+}
+function drawStats(){
+  var head=document.getElementById('stHead'),body=document.getElementById('stBody');
+  if(!head) return;
+  var cols=STCOLS[stPos]||STCOLS.WR;
+  var taken=rosteredKeys();
+  var list=[];
+  Object.keys(D.players).forEach(function(k){
+    var p=D.players[k];
+    if(p.pos!==stPos||!p.t) return;
+    if(stRostOnly&&!taken[k]) return;
+    if(stSearch.trim()&&p.name.toLowerCase().indexOf(stSearch.toLowerCase())<0) return;
+    list.push(p);
+  });
+  list.sort(function(a,b){
+    var x=statVal(a,stSort),y=statVal(b,stSort);
+    if(typeof x==='string') return x.localeCompare(y)*stDir*-1;
+    return (x-y)*stDir;
+  });
+  head.innerHTML='<tr>'+cols.map(function(cl){
+    var act=stSort===cl[0];
+    return '<th class="sortable'+(act?' act':'')+'" data-stc="'+cl[0]+'">'+cl[1]+
+      (act?'<span class="sar">'+(stDir<0?'▾':'▴')+'</span>':'')+'</th>';
+  }).join('')+'</tr>';
+  if(!list.length){ body.innerHTML='<tr><td colspan="13" class="empty">Nobody matches.</td></tr>'; return; }
+  body.innerHTML=list.slice(0,200).map(function(p){
+    return '<tr style="border-left:3px solid '+COL[p.pos]+'">'+cols.map(function(cl){
+      var v=statVal(p,cl[0]);
+      if(cl[0]==='name') return '<td class="pn">'+esc(p.name)+
+        (isInactive(p)?' <span style="color:var(--urg);font-size:9px">'+esc(p.st)+'</span>':'')+'</td>';
+      if(cl[0]==='team') return '<td class="mono">'+esc(p.team)+'</td>';
+      if(cl[0]==='d') return '<td class="mono">'+(p.d===undefined?'—':p.pos+p.d)+'</td>';
+      return '<td class="mono">'+v+'</td>';
+    }).join('')+'</tr>';
+  }).join('');
+  Array.prototype.forEach.call(head.querySelectorAll('[data-stc]'),function(h){
+    h.addEventListener('click',function(){
+      var id=h.getAttribute('data-stc');
+      if(stSort===id) stDir=-stDir; else { stSort=id; stDir=(id==='name'||id==='team')?1:-1; }
+      drawStats();
+    });
+  });
+}
+
+// ── scoreboard ─────────────────────────────────────────────
+function drawScoreboard(){
+  var host=document.getElementById('scoreboard'); if(!host) return;
+  document.getElementById('sbWeek').textContent=WEEK;
+  var gs=D.games.filter(function(g){return g.w===WEEK;});
+  if(!gs.length){ host.innerHTML='<div class="empty">No games scheduled for week '+WEEK+'.</div>'; return; }
+  var done=gs.filter(function(g){return g.done;}).length;
+  document.getElementById('sbCx').textContent=done?done+' of '+gs.length+' final':gs.length+' scheduled';
+  host.innerHTML=gs.map(function(g){
+    var line=(g.t!==undefined)?('O/U '+g.t+' &middot; '+(g.s>0?g.h+' -'+g.s:g.a+' -'+Math.abs(g.s))):'no line';
+    var score=g.done
+      ? '<span class="sbsc">'+(g.as!==undefined?g.as:'')+' &ndash; '+(g.hs!==undefined?g.hs:'')+'</span>'
+      : '<span class="sbimp">'+(g.ia!==undefined?g.ia.toFixed(1)+' / '+g.ih.toFixed(1):'—')+'</span>';
+    return '<div class="sbrow"><span class="sbt">'+g.a+' @ '+g.h+'</span>'+
+      '<span class="sbl">'+line+'</span>'+score+'</div>';
+  }).join('')+'<div class="wcn" style="padding:9px 13px;">Numbers on the right are implied team points until a game is final, then the score.</div>';
 }
 
 function drawSources(){
@@ -629,6 +739,17 @@ function wireStatic(){
     saveRoster(); drawTeamSel(); redraw();
     m.textContent='Added '+D.players[pkey(n)].name+'.';
   });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-st]'),function(b){
+    b.addEventListener('click',function(){
+      Array.prototype.forEach.call(document.querySelectorAll('[data-st]'),function(x){x.className='btn s g';});
+      b.className='btn s'; stPos=b.getAttribute('data-st'); stSort='pts'; stDir=-1; drawStats();
+    });
+  });
+  document.getElementById('stSearch').addEventListener('input',function(e){stSearch=e.target.value;drawStats();});
+  document.getElementById('stMine').addEventListener('click',function(){
+    stRostOnly=false;this.className='on';document.getElementById('stRost').className='';drawStats();});
+  document.getElementById('stRost').addEventListener('click',function(){
+    stRostOnly=true;this.className='on';document.getElementById('stMine').className='';drawStats();});
   Array.prototype.forEach.call(document.querySelectorAll('[data-wv]'),function(b){
     b.addEventListener('click',function(){
       Array.prototype.forEach.call(document.querySelectorAll('[data-wv]'),function(x){x.className='btn s g';});

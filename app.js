@@ -32,6 +32,9 @@ var INFO={
  env:"<p><b>Implied team total</b> is how many points the betting market expects a team to score, from the game total and the spread. It is the sharpest public read on game environment and almost nobody works it out by hand.</p><p>A back in a 28-point offence is in a different game from one in a 17-point offence, whatever their season averages look like.</p>",
  def:"<p>Points allowed per position, <b>adjusted for who each defence actually faced</b>. Raw points-allowed is badly confounded &mdash; a defence looks elite if its schedule handed it three weak offences.</p><p>Above 1.00 means generous; below means tough. 1.20 means the players facing them scored about 20% more than their own averages.</p>",
  import:"<p>Paste the CSV from the draft app's export. It carries every team's roster, so the app knows not just what you have but what everyone else has.</p><p>Names are matched to the stats feed automatically; anything that doesn't match is listed so you can add it by hand.</p>",
+ waivers:"<p>Everyone not on any of the twelve imported rosters, ranked by <b>opportunity</b> rather than name recognition. That is the whole point: the players worth adding are the ones whose usage has outgrown their reputation.</p><p>The score blends expected points from recent volume, the next three weeks of matchups and game environment, and role security from snap share. A rising target share counts for more than a big box score.</p><p>Anyone the import could not match &mdash; defences, kickers, players with no NFL snaps &mdash; is invisible here. They are not necessarily free.</p>",
+ drops:"<p>Your roster sorted by what each player is projected to contribute the rest of the way, worst first, with byes and injuries flagged.</p><p>It is a prompt, not an instruction. A stashed handcuff or a player returning from injury is worth more than his current projection says, and the model has no idea about either.</p>",
+ scoring:"<p>Your league's settings, as used in every calculation. Half PPR changes things more than people expect: a target is worth about 20% less than in full PPR, which moves value from high-volume receivers toward backs and quarterbacks.</p><p>Ja'Marr Chase alone is worth nearly four points a game less here than he would be in full PPR.</p>",
  sources:"<p>Everything comes from nflverse's public data and the open schedule file. No accounts, no private endpoints, nothing that breaks when a fantasy site changes its site.</p><p>A scheduled job rebuilds the data every Tuesday. If it fails or the file goes stale, a banner appears at the top rather than the app quietly showing you last week's numbers.</p>"
 };
 
@@ -61,6 +64,7 @@ function ready(){
 function redraw(){
   drawHeader(); drawLineup(); drawBench(); drawFlex();
   drawCompareOptions(); drawCompare(); drawTrends(); drawEnv(); drawDef();
+  drawWaivers(); drawDrops(); drawScoring();
 }
 
 // ── helpers ────────────────────────────────────────────────
@@ -378,12 +382,143 @@ function drawDef(){
   }).join('');
 }
 
+// ── waivers ────────────────────────────────────────────────
+var wvFilter='ALL', wvSearch='';
+// Raw points rank quarterbacks first at every position, which makes a waiver
+// list useless: you start one QB and the rest of the league is free. What
+// matters is value over the replacement you could pick up at that position,
+// so a startable back outranks a seventh-best quarterback.
+var REPL={};
+function computeRepl(){
+  var teams=Math.max(2,Object.keys(ROSTERS).length||12);
+  var need={QB:1,RB:2.5,WR:3,TE:1};   // starters plus a share of the flex
+  REPL={};
+  POSN.forEach(function(pos){
+    var vals=[];
+    Object.keys(D.players).forEach(function(k){
+      var p=D.players[k];
+      if(p.pos!==pos) return;
+      var st=statLine(p); if(!st||st[0]<3) return;
+      vals.push(st[2]>0?st[2]:st[1]);
+    });
+    vals.sort(function(a,b){return b-a;});
+    var idx=Math.min(vals.length-1,Math.max(0,Math.round(teams*need[pos])-1));
+    REPL[pos]=vals.length?vals[idx]:0;
+  });
+}
+function rosteredKeys(){
+  var set={};
+  Object.keys(ROSTERS).forEach(function(t){
+    ROSTERS[t].forEach(function(n){ set[pkey(n)]=t; });
+  });
+  return set;
+}
+// Value over the next three weeks, not just this one - a waiver add is a
+// multi-week decision and one soft matchup shouldn't carry it.
+function forwardScore(k){
+  var out=0,n=0;
+  for(var w=WEEK;w<WEEK+3&&w<=18;w++){
+    var r=project(k,w);
+    if(!r) break;
+    if(r.bye) continue;
+    out+=r.proj; n++;
+  }
+  return n?out/n:null;
+}
+function drawWaivers(){
+  var host=document.getElementById('wvList'),cx=document.getElementById('wvCx');
+  if(!Object.keys(ROSTERS).length){
+    host.innerHTML='<div class="empty">Import your league first, in <b>Setup</b>. '+
+      'Without every team\'s roster the app can\'t tell who is actually a free agent.</div>';
+    cx.textContent=''; return;
+  }
+  computeRepl();
+  var taken=rosteredKeys();
+  var rows=[];
+  Object.keys(D.players).forEach(function(k){
+    if(taken[k]) return;
+    var p=D.players[k];
+    if(wvFilter!=='ALL'&&p.pos!==wvFilter) return;
+    if(wvSearch.trim()&&p.name.toLowerCase().indexOf(wvSearch.toLowerCase())<0) return;
+    var st=statLine(p); if(!st||st[0]<3) return;
+    var f=forwardScore(k); if(f===null) return;
+    var trend=(p.r&&p.s)?(p.r[5]-p.s[5]):0;
+    var secure=(p.sn!==undefined)?Math.max(.85,Math.min(1.1,p.sn/60)):1;
+    var vor=f-(REPL[p.pos]||0);
+    rows.push({k:k,p:p,st:st,f:f,vor:vor,score:vor*secure+trend*.35,trend:trend});
+  });
+  if(!rows.length){ host.innerHTML='<div class="empty">Nobody available matches.</div>'; cx.textContent=''; return; }
+  rows.sort(function(a,b){return b.score-a.score;});
+  cx.textContent=rows.length+' available';
+  var mx=Math.max.apply(null,rows.slice(0,25).map(function(r){return Math.max(.1,r.score);}));
+  host.innerHTML=rows.slice(0,25).map(function(r,i){
+    var reasons=[];
+    if(r.st[5]>=20) reasons.push('<b>'+r.st[5].toFixed(0)+'%</b> target share');
+    if(r.st[3]>=11) reasons.push('<b>'+r.st[3].toFixed(1)+'</b> touches a game');
+    if(r.trend>=4) reasons.push('<b>role growing</b> — targets up '+r.trend.toFixed(0)+' points');
+    else if(r.trend<=-4) reasons.push('role shrinking');
+    if(r.p.sn!==undefined) reasons.push(r.p.sn.toFixed(0)+'% of snaps');
+    if(r.p.inj) reasons.push('<span style="color:var(--ac)">'+esc(r.p.inj[0])+'</span>');
+    var nx=oppOf(r.p.team,WEEK);
+    return '<div class="slotrow" style="border-left-color:'+COL[r.p.pos]+'">'+
+      '<span class="slotlab">'+(i+1)+'</span>'+
+      '<div class="slotmain"><div class="slotname">'+esc(r.p.name)+'</div>'+
+      '<div class="slotmeta">'+r.p.pos+' '+r.p.team+
+        (nx?' &middot; '+(nx.home?'vs ':'@ ')+nx.opp:' &middot; bye')+
+        ' &middot; '+r.st[0]+'g '+statSrc(r.p)+' &middot; '+r.f.toFixed(1)+' proj</div>'+
+      (reasons.length?'<div class="slotwhy">'+reasons.slice(0,3).join(' &middot; ')+'</div>':'')+
+      '<div class="sigbar"><span class="sig"><span style="width:'+Math.max(2,Math.min(100,r.score/mx*100))+'%;background:'+COL[r.p.pos]+'"></span></span></div>'+
+      '</div><span class="proj">'+(r.vor>0?'+':'')+r.vor.toFixed(1)+
+      '<span class="proju">vs repl</span></span></div>';
+  }).join('')+
+  '<div class="wcn" style="padding:9px 13px;">Ranked by points above the replacement you could stream '+
+  'at that position, not raw points &mdash; otherwise every spare quarterback sits at the top.</div>';
+}
+function drawDrops(){
+  var host=document.getElementById('dropList');
+  var roster=myRoster();
+  if(!roster.length){ host.innerHTML='<div class="empty">No roster imported.</div>'; return; }
+  var rows=roster.map(function(n){
+    var k=pkey(n),p=D.players[k];
+    if(!p) return {name:n,unknown:true,f:-1};
+    var f=forwardScore(k);
+    return {name:p.name,p:p,f:f===null?0:f,inj:p.inj,bye:!oppOf(p.team,WEEK)};
+  });
+  rows.sort(function(a,b){return a.f-b.f;});
+  host.innerHTML=rows.slice(0,8).map(function(r){
+    var note=r.unknown?'no stats on file — probably a defence or kicker'
+      :(r.inj?'injury report: '+esc(r.inj[0]):(r.bye?'on bye this week':''));
+    return '<div class="slotrow'+(r.unknown?' benchrow':'')+'" style="border-left-color:'+
+      (r.p?COL[r.p.pos]:'var(--ln)')+'">'+
+      '<span class="slotlab">'+(r.p?r.p.pos:'?')+'</span>'+
+      '<div class="slotmain"><div class="slotname">'+esc(r.name)+'</div>'+
+      (note?'<div class="slotwhy">'+note+'</div>':'')+'</div>'+
+      '<span class="proj">'+(r.unknown?'—':r.f.toFixed(1))+'<span class="proju">3wk avg</span></span></div>';
+  }).join('')+'<div class="wcn" style="padding:9px 13px;">Weakest first. A stashed handcuff or a '+
+    'player coming back from injury is worth more than this shows &mdash; the model has no idea about either.</div>';
+}
+function drawScoring(){
+  var host=document.getElementById('scoreGrid'); if(!host||!D.meta.scoring) return;
+  var s=D.meta.scoring;
+  var groups=[
+    ['Passing',[['Yards',s.pass_yd],['TD',s.pass_td],['Interception',s.int],['400 yd bonus',s.pass_400_bonus]]],
+    ['Rushing',[['Yards',s.rush_yd],['TD',s.rush_td],['200 yd bonus',s.rush_200_bonus]]],
+    ['Receiving',[['Reception',s.rec],['Yards',s.rec_yd],['TD',s.rec_td],['200 yd bonus',s.rec_200_bonus]]],
+    ['Other',[['Fumble lost',s.fumble_lost],['Return TD',s.return_td],
+              ['2pt',s.rec_2pt]]]
+  ];
+  host.innerHTML=groups.map(function(g){
+    return '<div class="mxcard"><div class="mxt">'+g[0]+'</div>'+g[1].map(function(r){
+      return '<div class="mxr"><span>'+r[0]+'</span><span class="mxv">'+r[1]+'</span></div>';
+    }).join('')+'</div>';
+  }).join('');
+}
+
 function drawSources(){
   document.getElementById('srcInfo').innerHTML=
     'Season <b>'+D.meta.season+'</b>, week <b>'+D.meta.week+'</b>.<br>'+
     'Weeks played: '+(D.meta.played&&D.meta.played.length?D.meta.played.join(', '):'none yet')+'<br>'+
-    'Opportunity values: <b>'+D.meta.ppc+'</b> points per carry, <b>'+D.meta.ppt+'</b> per target'+
-    ' (league averages from '+D.meta.prior+')<br>'+
+    'Opportunity values under your scoring: <b>'+D.meta.ppc+'</b> per carry, <b>'+D.meta.ppt+'</b> per target, <b>'+(D.meta.ppa||'—')+'</b> per pass attempt<br>'+
     'Defence ratings from <b>'+D.meta.defense_season+'</b><br>'+
     'Players: '+Object.keys(D.players).length+' &middot; games: '+D.games.length+'<br>'+
     'Built '+new Date(D.meta.built).toLocaleString();
@@ -493,6 +628,15 @@ function wireStatic(){
     document.getElementById('addName').value='';
     saveRoster(); drawTeamSel(); redraw();
     m.textContent='Added '+D.players[pkey(n)].name+'.';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-wv]'),function(b){
+    b.addEventListener('click',function(){
+      Array.prototype.forEach.call(document.querySelectorAll('[data-wv]'),function(x){x.className='btn s g';});
+      b.className='btn s'; wvFilter=b.getAttribute('data-wv'); drawWaivers();
+    });
+  });
+  document.getElementById('wvSearch').addEventListener('input',function(e){
+    wvSearch=e.target.value; drawWaivers();
   });
   ['cmpA','cmpB'].forEach(function(id){
     document.getElementById(id).addEventListener('change',drawCompare);

@@ -623,6 +623,42 @@
   .sbimp{font-family:var(--fm);font-size:11.5px;color:var(--dim);}
   .ta{width:100%;background:var(--s3);border:1px solid var(--ln2);color:var(--tx);font-family:var(--fm);
     font-size:11.5px;padding:10px;border-radius:5px;min-height:130px;resize:vertical;}
+
+  .kpigrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:9px;}
+  .kpi{background:var(--s2);border:1px solid var(--ln);border-left-width:3px;border-radius:7px;padding:10px 12px;}
+  .kpi.good{border-left-color:var(--ok);} .kpi.bad{border-left-color:var(--urg);} .kpi.warn{border-left-color:var(--ac);}
+  .kl{font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--dimr);font-weight:700;}
+  .kv{font-family:var(--fd);font-size:24px;line-height:1.1;margin:3px 0 1px;}
+  .ks{font-size:10px;color:var(--dim);font-family:var(--fm);}
+  .pvarow{display:flex;align-items:center;gap:9px;padding:7px 13px;border-bottom:1px solid var(--ln);}
+  .pvarow:last-of-type{border-bottom:none;}
+  .pvan{width:140px;flex-shrink:0;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pvap{font-size:9px;font-weight:800;}
+  .pvatrack{flex:1;height:16px;background:var(--s3);border-radius:3px;position:relative;overflow:hidden;min-width:80px;}
+  .pvafill{position:absolute;left:0;top:0;bottom:0;border-radius:3px 0 0 3px;}
+  .pvamark{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--tx);opacity:.85;}
+  .pvav{font-family:var(--fm);font-size:12px;width:46px;text-align:right;flex-shrink:0;font-weight:700;}
+  .pvad{font-family:var(--fm);font-size:9.5px;color:var(--dimr);width:74px;text-align:right;flex-shrink:0;}
+  .tcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:9px;}
+  .tcard{background:var(--s2);border:1px solid var(--ln);border-radius:7px;padding:10px;}
+  .tcard.mine{border-color:var(--ac);}
+  .tch{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
+  .trank{font-family:var(--fm);font-size:10px;color:var(--dimr);}
+  .tname{flex:1;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ttot{font-family:var(--fm);font-size:13px;}
+  .tbar{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+  .tbp{width:22px;font-size:9px;font-weight:700;color:var(--dimr);}
+  .tbt{flex:1;height:7px;background:var(--s3);border-radius:2px;overflow:hidden;}
+  .tbt span{display:block;height:100%;}
+  .tbv{font-family:var(--fm);font-size:9.5px;width:26px;text-align:right;}
+  .tfoot{font-size:9.5px;color:var(--dimr);margin-top:6px;font-family:var(--fm);}
+  .hrow{display:flex;gap:3px;align-items:center;margin-bottom:3px;}
+  .hrow.mine .hlab{color:var(--ac);font-weight:700;}
+  .hlab{width:96px;flex-shrink:0;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .hc{flex:1;text-align:center;font-family:var(--fm);font-size:10px;padding:6px 2px;border-radius:3px;}
+  .hhead .hc{font-weight:800;font-size:9px;}
+  .dep{font-size:9px;color:var(--dimr);font-family:var(--fm);}
+  .flag{font-size:9px;color:var(--urg);font-weight:700;}
 </style>
 </head>
 <body>
@@ -636,76 +672,74 @@
     <div class="wkpick" id="wkPick"></div>
   </div>
   <div class="tabs" id="tabs">
-    <div class="tab on" data-t="week">This week</div>
-    <div class="tab" data-t="compare">Compare</div>
-    <div class="tab" data-t="trends">Trends</div>
+    <div class="tab on" data-t="dash">Dashboard</div>
+    <div class="tab" data-t="league">League</div>
     <div class="tab" data-t="waivers">Waivers</div>
+    <div class="tab" data-t="trades">Trades</div>
     <div class="tab" data-t="stats">Stats</div>
-    <div class="tab" data-t="matchups">Matchups</div>
     <div class="tab" data-t="setup">Setup</div>
   </div>
 </div></div>
 
 <div id="banners"></div>
-
 <div class="wrap">
 
-<div class="panel" id="p-week">
-  <div class="card" id="lineupCard">
-    <div class="ch"><h3>Your lineup</h3><button class="info" data-info="score">i</button>
-      <span class="cx" id="lineupCx"></span></div>
-    <div class="cb tight" id="lineup"></div>
-  </div>
+<!-- ══ DASHBOARD ══ -->
+<div class="panel" id="p-dash">
   <div class="card">
-    <div class="ch"><h3>Week <span id="sbWeek">1</span> games</h3><span class="cx" id="sbCx"></span></div>
-    <div class="cb tight" id="scoreboard"></div>
+    <div class="ch"><h3>Team</h3><button class="info" data-info="kpi">i</button>
+      <select class="sfi" id="dashTeamSel" style="width:auto;margin-left:auto;min-height:32px;font-size:13px;padding:6px 9px;"></select></div>
+    <div class="cb"><div class="kpigrid" id="kpis"></div></div>
   </div>
-  <div class="card" id="flexCard" hidden>
-    <div class="ch"><h3>The flex call</h3><button class="info" data-info="flex">i</button></div>
-    <div class="cb tight" id="flexCall"></div>
-  </div>
-  <div class="card">
-    <div class="ch"><h3>Bench</h3></div>
-    <div class="cb tight" id="benchList"></div>
-  </div>
-</div>
-
-<div class="panel" id="p-stats" hidden>
-  <div class="card">
-    <div class="cb" style="padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-      <button class="btn s" data-st="QB" id="stQB">QB</button>
-      <button class="btn s g" data-st="RB">RB</button>
-      <button class="btn s g" data-st="WR">WR</button>
-      <button class="btn s g" data-st="TE">TE</button>
-      <input class="sfi" id="stSearch" type="text" placeholder="Search..." style="flex:1;min-width:120px;min-height:34px;font-size:14px;padding:7px 10px;">
-      <span class="seg"><button id="stMine" class="on">Everyone</button><button id="stRost">Rostered only</button></span>
-      <button class="info" data-info="stats">i</button>
+  <div class="cols">
+    <div>
+      <div class="card">
+        <div class="ch"><h3>Projected vs actual</h3><button class="info" data-info="pva">i</button>
+          <span class="seg" style="margin-left:auto;"><button id="pvaPts" class="on">Points</button><button id="pvaPct">%</button></span></div>
+        <div class="cb tight" id="pvaList"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Lineup</h3></div>
+        <div class="cb tight" id="lineup"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Bench</h3></div>
+        <div class="cb tight" id="benchList"></div>
+      </div>
     </div>
-    <div class="tsc" style="max-height:72vh;"><table>
-      <thead id="stHead"></thead><tbody id="stBody"></tbody>
-    </table></div>
-  </div>
-</div>
-
-<div class="panel" id="p-compare" hidden>
-  <div class="card">
-    <div class="cb" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <select class="sfi" id="cmpA" style="flex:1;min-width:150px;"></select>
-      <span style="color:var(--dimr);font-size:11px;">vs</span>
-      <select class="sfi" id="cmpB" style="flex:1;min-width:150px;"></select>
+    <div>
+      <div class="card">
+        <div class="ch"><h3>Week <span id="sbWeek">1</span></h3><span class="cx" id="sbCx"></span></div>
+        <div class="cb tight" id="scoreboard"></div>
+      </div>
     </div>
   </div>
-  <div class="cmpgrid" id="cmpOut"></div>
 </div>
 
-<div class="panel" id="p-trends" hidden>
+<!-- ══ LEAGUE ══ -->
+<div class="panel" id="p-league" hidden>
   <div class="card">
-    <div class="ch"><h3>Roles on the move</h3><button class="info" data-info="trends">i</button></div>
-    <div class="cb tight" id="trendList"></div>
+    <div class="ch"><h3>Positional heat map</h3><button class="info" data-info="heat">i</button></div>
+    <div class="cb"><div id="heatGrid"></div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Team scorecards</h3><button class="info" data-info="league">i</button></div>
+    <div class="cb"><div class="tcards" id="teamCards"></div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Against projection, league-wide</h3>
+      <span class="cx">toggle points/% on the dashboard</span></div>
+    <div class="cb tight" id="leagueTrend"></div>
   </div>
 </div>
 
+<!-- ══ WAIVERS ══ -->
 <div class="panel" id="p-waivers" hidden>
+  <div class="card">
+    <div class="ch"><h3>Rising value</h3><button class="info" data-info="rising">i</button>
+      <span class="cx">early detection</span></div>
+    <div class="cb tight" id="risingList"></div>
+  </div>
   <div class="card">
     <div class="cb" style="padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
       <button class="btn s" data-wv="ALL" id="wvALL">All</button>
@@ -716,78 +750,82 @@
       <input class="sfi" id="wvSearch" type="text" placeholder="Search..." style="flex:1;min-width:120px;min-height:34px;font-size:14px;padding:7px 10px;">
       <button class="info" data-info="waivers">i</button>
     </div>
-  </div>
-  <div class="card">
     <div class="ch"><h3>Best available</h3><span class="cx" id="wvCx"></span></div>
     <div class="cb tight" id="wvList"></div>
   </div>
-  <div class="card" id="dropCard">
-    <div class="ch"><h3>Who you'd drop</h3><button class="info" data-info="drops">i</button></div>
+  <div class="card">
+    <div class="ch"><h3>Who you'd drop</h3></div>
     <div class="cb tight" id="dropList"></div>
   </div>
 </div>
 
-<div class="panel" id="p-matchups" hidden>
+<!-- ══ TRADES ══ -->
+<div class="panel" id="p-trades" hidden>
   <div class="card">
-    <div class="ch"><h3>Game environment this week</h3><button class="info" data-info="env">i</button></div>
-    <div class="cb tight" id="impList"></div>
+    <div class="ch"><h3>Your position</h3><button class="info" data-info="trades">i</button>
+      <span class="cx" id="tradeCx"></span></div>
   </div>
-  <div class="card">
-    <div class="ch"><h3>Defences by position</h3><button class="info" data-info="def">i</button>
-      <span class="cx" id="defSrc"></span></div>
-    <div class="cb"><div class="mxgrid" id="defGrid"></div></div>
+  <div class="cols">
+    <div><div class="card">
+      <div class="ch"><h3>They might want</h3></div>
+      <div class="cb tight" id="tradeGive"></div>
+    </div></div>
+    <div><div class="card">
+      <div class="ch"><h3>You might want</h3></div>
+      <div class="cb tight" id="tradeGet"></div>
+    </div></div>
   </div>
 </div>
 
+<!-- ══ STATS ══ -->
+<div class="panel" id="p-stats" hidden>
+  <div class="card">
+    <div class="cb" style="padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <button class="btn s" data-st="QB" id="stQB">QB</button>
+      <button class="btn s g" data-st="RB">RB</button>
+      <button class="btn s g" data-st="WR">WR</button>
+      <button class="btn s g" data-st="TE">TE</button>
+      <input class="sfi" id="stSearch" type="text" placeholder="Search..." style="flex:1;min-width:120px;min-height:34px;font-size:14px;padding:7px 10px;">
+      <span class="seg"><button id="stMine" class="on">Everyone</button><button id="stRost">Rostered</button></span>
+      <button class="info" data-info="stats">i</button>
+    </div>
+    <div class="tsc" style="max-height:72vh;"><table><thead id="stHead"></thead><tbody id="stBody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ══ SETUP ══ -->
 <div class="panel" id="p-setup" hidden>
   <div class="card">
-    <div class="ch"><h3>Import your roster</h3><button class="info" data-info="import">i</button></div>
+    <div class="ch"><h3>Roster source</h3></div>
     <div class="cb">
       <div style="font-size:11.5px;color:var(--dim);line-height:1.6;margin-bottom:10px;">
-        In the draft app open <b>Setup &rarr; Export &rarr; CSV</b>, copy it, and paste it below.
-        That brings in every team's roster at once, so waiver work later knows who is actually free.
+        If ESPN sync is configured it wins and this is only a fallback. Otherwise paste the
+        <b>CSV export</b> from the draft app.
       </div>
-      <textarea class="ta" id="impBox" placeholder="pick,round,team,player,pos,nfl_team,bye,adp,proj&#10;1,1,&quot;Team 1&quot;,&quot;Jahmyr Gibbs&quot;,RB,DET,6,1.5,331.4&#10;..."></textarea>
+      <textarea class="ta" id="impBox" placeholder="pick,round,team,player,pos,nfl_team,bye,adp,proj"></textarea>
       <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center;">
         <button class="btn s p" id="impRun">Import</button>
-        <button class="btn s g" id="impClear">Clear roster</button>
+        <button class="btn s g" id="impClear">Clear</button>
         <select class="sfi" id="myTeamSel" style="width:auto;min-height:34px;font-size:13px;padding:6px 9px;"></select>
         <span id="impMsg" style="font-size:11px;color:var(--dim);"></span>
       </div>
     </div>
   </div>
   <div class="card">
-    <div class="ch"><h3>Add a player by hand</h3></div>
-    <div class="cb" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-      <input class="sfi" id="addName" type="text" placeholder="Player name" style="flex:1;min-width:150px;">
-      <button class="btn s" id="addBtn">Add to my roster</button>
-      <span id="addMsg" style="font-size:11px;color:var(--dim);"></span>
-    </div>
+    <div class="ch"><h3>League scoring</h3><button class="info" data-info="scoring">i</button></div>
+    <div class="cb"><div id="scoreGrid" class="mxgrid"></div></div>
   </div>
   <div class="card">
     <div class="ch"><h3>Appearance</h3></div>
     <div class="cb">
       <div class="sfl">Theme</div><div class="thgrid" id="thGrid"></div>
       <div class="sfl" style="margin-top:14px;">Text size</div>
-      <span class="seg">
-        <button data-sz="0.92">S</button><button data-sz="1" class="on">M</button>
-        <button data-sz="1.12">L</button><button data-sz="1.28">XL</button>
-      </span>
+      <span class="seg"><button data-sz="0.92">S</button><button data-sz="1" class="on">M</button>
+        <button data-sz="1.12">L</button><button data-sz="1.28">XL</button></span>
     </div>
   </div>
   <div class="card">
-    <div class="ch"><h3>League scoring</h3><button class="info" data-info="scoring">i</button></div>
-    <div class="cb"><div id="scoreGrid" class="mxgrid"></div>
-      <div style="font-size:10.5px;color:var(--dimr);margin-top:10px;line-height:1.55;">
-        Every number in the app is computed under these settings &mdash; points per game,
-        expected points, the relative value of a carry against a target, the matchup ratings.
-        If any of it is wrong, change <b>SCORING</b> at the top of <b>build_data.py</b> and
-        re-run the action.
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="ch"><h3>Where the data comes from</h3><button class="info" data-info="sources">i</button></div>
+    <div class="ch"><h3>Data</h3><button class="info" data-info="sources">i</button></div>
     <div class="cb"><div id="srcInfo" style="font-size:11.5px;color:var(--dim);line-height:1.7;"></div></div>
   </div>
 </div>

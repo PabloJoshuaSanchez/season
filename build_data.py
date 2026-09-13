@@ -337,6 +337,105 @@ def injuries(season):
     return latest
 
 
+# ── projection model ───────────────────────────────────────────────────────
+# This used to live in the browser. It moved here so every week's projection is
+# written down BEFORE the games, which is the only honest way to score
+# projected-against-actual later. The app now reads projections rather than
+# inventing them: what you see on Tuesday is what gets graded on Monday.
+ROLE_CURVE = {"QB": [1, .12, .05, .03], "RB": [1, .60, .30, .15],
+              "WR": [1, .92, .72, .45, .25], "TE": [1, .45, .20, .12]}
+LEAGUE_AVG_IMPLIED = 22.5
+
+
+def role_mult(pos, rank, cur_games):
+    if rank is None:
+        return 1.0
+    curve = ROLE_CURVE.get(pos, [1, .8, .5, .3])
+    raw = curve[min(len(curve) - 1, max(0, rank - 1))]
+    w = max(.2, 1 - (cur_games or 0) / 8)    # real usage supersedes the depth chart
+    return 1 + (raw - 1) * w
+
+
+def project_week(players, dfn, games, wk):
+    out = {}
+    gmap = {}
+    for g in games:
+        if g["w"] != wk:
+            continue
+        gmap[g["a"]] = ("away", g)
+        gmap[g["h"]] = ("home", g)
+    for k, p in players.items():
+        st = p.get("r") or p.get("s") or p.get("b")
+        if not st:
+            continue
+        base = st[2] if st[2] > 0 else st[1]
+        side = gmap.get(p["team"])
+        if not side:
+            continue
+        which, g = side
+        opp = g["h"] if which == "away" else g["a"]
+        m_match, m_env = 1.0, 1.0
+        d = dfn.get(opp)
+        if d and d.get(p["pos"]):
+            m_match = max(.82, min(1.22, d[p["pos"]]))
+        implied = g.get("ia") if which == "away" else g.get("ih")
+        if implied:
+            m_env = max(.85, min(1.18, implied / LEAGUE_AVG_IMPLIED))
+        m_role = role_mult(p["pos"], p.get("d"), (p.get("s") or [0])[0])
+        out[k] = round(base * m_match * m_env * m_role, 1)
+    return out
+
+
+# ── ESPN league sync (optional) ────────────────────────────────────────────
+# Reads your real league: rosters, matchups. Needs three repo secrets. Entirely
+# optional - without it the app uses the CSV you paste in, and everything except
+# live free-agent status still works.
+def espn_league():
+    lid = os.environ.get("ESPN_LEAGUE_ID", "").strip()
+    s2 = os.environ.get("ESPN_S2", "").strip()
+    swid = os.environ.get("ESPN_SWID", "").strip()
+    if not (lid and s2 and swid):
+        return None
+    url = (f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{SEASON}"
+           f"/segments/0/leagues/{lid}?view=mRoster&view=mTeam&view=mSettings&view=mMatchupScore")
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 season-war-room",
+            "Cookie": f"espn_s2={s2}; SWID={swid}",
+            "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            raw = json.loads(r.read().decode("utf-8", "replace"))
+    except Exception as e:
+        warnings.append(f"ESPN sync failed ({e}) - using the roster you imported by hand")
+        return None
+    try:
+        teams, rosters = {}, {}
+        for t in raw.get("teams", []):
+            nm = (t.get("name") or
+                  f"{t.get('location','')} {t.get('nickname','')}".strip() or f"Team {t.get('id')}")
+            teams[t.get("id")] = nm
+            names = []
+            for e in (t.get("roster", {}) or {}).get("entries", []):
+                pl = ((e.get("playerPoolEntry") or {}).get("player") or {})
+                if pl.get("fullName"):
+                    names.append(pl["fullName"])
+            rosters[nm] = names
+        sched = []
+        for m in raw.get("schedule", []):
+            if m.get("matchupPeriodId") is None:
+                continue
+            a, h = m.get("away") or {}, m.get("home") or {}
+            sched.append({"w": m["matchupPeriodId"],
+                          "a": teams.get(a.get("teamId")), "h": teams.get(h.get("teamId")),
+                          "as": round(a.get("totalPoints", 0) or 0, 1),
+                          "hs": round(h.get("totalPoints", 0) or 0, 1)})
+        print(f"  ESPN: {len(rosters)} teams, {sum(len(v) for v in rosters.values())} rostered")
+        return {"rosters": rosters, "matchups": sched}
+    except Exception as e:
+        warnings.append(f"ESPN returned data that could not be read ({e})")
+        return None
+
+
 # ── assemble ───────────────────────────────────────────────────────────────
 def main():
     games, byes, weeks = build_schedule()
@@ -403,6 +502,30 @@ def main():
             rec["tsrc"] = SEASON if k in cur_tot else PRIOR
         players[k] = rec
 
+    proj = {}
+    for wk in range(cur_week, min(cur_week + 4, 19)):
+        proj[str(wk)] = project_week(players, dfn, games, wk)
+
+    # Permanent record of what we predicted before each week. First write wins,
+    # so a later rebuild can never quietly improve its own past forecasts.
+    hist, hp = {}, "proj_history.json"
+    if os.path.exists(hp):
+        try:
+            hist = json.load(open(hp))
+        except Exception:
+            hist = {}
+    for wk, vals in proj.items():
+        hist.setdefault(wk, vals)
+    with open(hp, "w") as f:
+        json.dump(hist, f, separators=(",", ":"))
+
+    actual = defaultdict(dict)
+    for r in cur_weekly:
+        if r.get("position") in POS:
+            actual[str(int(r["week"]))][key(r["player_display_name"])] = round(score(r), 1)
+
+    league = espn_league()
+
     data = {
         "meta": {
             "built": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
@@ -416,6 +539,10 @@ def main():
             "warnings": warnings,
         },
         "players": players,
+        "proj": proj,
+        "hist": {w: v for w, v in hist.items() if w in {str(x) for x in played}},
+        "actual": dict(actual),
+        "league": league,
         "defense": dfn,
         "games": games,
         "byes": byes,
@@ -426,6 +553,8 @@ def main():
     print(f"wrote {OUT}  {size:.0f} KB")
     print(f"  players {len(players)} | defences {len(dfn)} | games {len(games)}")
     print(f"  depth-chart ranks {len(depth)} | roster statuses {len(status)}")
+    print(f"  projections for weeks {sorted(proj)} | history {sorted(hist) or 'none yet'}")
+    print(f"  ESPN league: {'connected' if league else 'not configured'}")
     print(f"  season {SEASON} week {cur_week} | weeks played {played or 'none'}")
     print(f"  opportunity values: {ppc}/carry  {ppt}/target  {ppa}/pass attempt")
     print(f"  scoring: {SCORING['rec']} per reception, {SCORING['int']} per interception")

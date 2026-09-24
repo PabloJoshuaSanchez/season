@@ -1,11 +1,12 @@
 name: Refresh season data
 
-# Tuesday 11:00 UTC — after Monday night finishes and nflverse has published.
-# Also runnable by hand from the Actions tab, which is what you want the first
-# time and any week something looks wrong.
+# Tuesday 11:00 UTC  - after Monday night, before waivers process. The key run.
+# Saturday 15:00 UTC - late-week depth charts and injury reports.
+# Also runnable by hand from the Actions tab.
 on:
   schedule:
     - cron: "0 11 * * 2"
+    - cron: "0 15 * * 6"
   workflow_dispatch:
 
 permissions:
@@ -25,30 +26,38 @@ jobs:
         run: python build_data.py
         env:
           SEASON: "2026"
+          # Secrets are NOT visible to a script unless mapped here explicitly.
+          # The first version of this file omitted these three lines, which is
+          # why ESPN always reported "not configured" however the secrets were set.
+          ESPN_LEAGUE_ID: ${{ secrets.ESPN_LEAGUE_ID }}
+          ESPN_S2: ${{ secrets.ESPN_S2 }}
+          ESPN_SWID: ${{ secrets.ESPN_SWID }}
 
-      - name: Fail if the file looks wrong
+      - name: Refuse to commit a broken build
         run: |
-          # A truncated or empty build is worse than a stale one, because the
-          # app would show confident nonsense. Refuse to commit it.
-          python - <<'EOF'
+          python - <<'PY'
           import json, sys, os
           size = os.path.getsize("data.json") / 1024
           d = json.load(open("data.json"))
-          players = len(d.get("players", {}))
-          games = len(d.get("games", []))
+          players, games = len(d.get("players", {})), len(d.get("games", []))
           print(f"{size:.0f} KB | {players} players | {games} games")
+          lg = (d.get("meta") or {}).get("espn") or {}
+          print("ESPN:", lg.get("status"), "-", lg.get("detail", ""))
           if size < 20 or players < 300 or games < 200:
-              sys.exit("data.json failed its sanity check — not committing")
-          EOF
+              sys.exit("data.json failed its sanity check - not committing")
+          PY
 
-      - name: Commit if changed
+      - name: Commit data and projection history
         run: |
           git config user.name "season-data-bot"
           git config user.email "actions@github.com"
-          if git diff --quiet data.json; then
+          # history must be committed too, or every run forgets the last one
+          git add data.json proj_history.json
+          if git diff --cached --quiet; then
             echo "no change this run"
           else
-            git add data.json
             git commit -m "data refresh $(date -u +%Y-%m-%d)"
+            # pick up anything pushed while this ran, then push
+            git pull --rebase --autostash
             git push
           fi

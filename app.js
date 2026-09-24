@@ -1,4 +1,8 @@
 "use strict";
+// Stamped at build time, and the page requests app.js?v=<same stamp>. If the
+// two ever disagree the browser has mixed an old file with a new one, and we
+// say so instead of crashing halfway through drawing.
+var BUILD='20260924013343';
 // ════════════════════════════════════════════════════════════
 // Season War Room — waivers and trades.
 // Every recommendation is scored against YOUR roster: an add is only worth what
@@ -678,15 +682,33 @@ function showTab(n){
 function loadLeague(){LG=chooseLeague();trackDrops(LG);MYID=resolveMine();TRADECACHE={key:null,deals:null};WCACHE={key:null,rows:null};INSID=null;}
 function redraw(){
   VCACHE={};
-  drawBanners();drawHeader();drawNeeds();drawRiseChart();drawWaiverTable();drawInsights();drawTrades();
-  drawStandings();drawMoves();drawHeat();drawPvA();drawConn();drawMySel();drawSrc();
+  var fns=[drawBanners,drawHeader,drawNeeds,drawRiseChart,drawWaiverTable,drawInsights,drawTrades,
+           drawStandings,drawMoves,drawHeat,drawPvA,drawConn,drawMySel,drawSrc],fails=[];
+  fns.forEach(function(f){try{f();}catch(e){fails.push((f.name||'panel')+': '+(e&&e.message||e));
+    if(window.console)console.error(f.name,e);}});
+  if(fails.length){var b=document.getElementById('banners');
+    if(b)b.innerHTML+='<div class="banner bad">'+fails.length+' section'+(fails.length>1?'s':'')+
+      ' failed to draw ('+esc(fails[0])+'). The rest of the app is fine. '+
+      '<a href="#" onclick="freshReload();return false;">Reload</a> usually clears this.</div>';}
 }
+function fatal(html){var b=document.getElementById('banners');if(b)b.innerHTML='<div class="banner bad">'+html+'</div>';}
+function freshReload(){location.href=location.pathname+'?r='+Date.now()+location.hash;}
 function boot(){
+  if(window.EXPECT_BUILD&&window.EXPECT_BUILD!==BUILD){
+    fatal('<b>The app just updated and your browser mixed old and new files.</b> '+
+      '<a href="#" onclick="freshReload();return false;">Reload</a> to fix it.');
+    return;
+  }
   applyTheme(ls('swrtheme')||'dark');applyScale(parseFloat(ls('swrscale'))||1);
-  fetch('./data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+  fetch('./data.json',{cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .catch(function(e){fatal('<b>Could not download data.json</b> ('+esc(String(e.message||e))+
+      '). If you just deployed, wait a minute and reload; otherwise run the action once.');throw 'handled';})
     .then(function(j){D=j;WEEK=D.meta.week||1;loadLeague();drawThemes();wire();redraw();})
-    .catch(function(e){document.getElementById('banners').innerHTML='<div class="banner bad"><b>Could not load data.json.</b> '+
-      esc(String(e.message||e))+'</div>';});
+    .catch(function(e){if(e==='handled')return;
+      fatal('<b>Something broke while drawing the page:</b> '+esc(String(e&&e.message||e))+
+        '. Try <a href="#" onclick="freshReload();return false;">reloading</a>.');
+      if(window.console)console.error(e);});
 }
 function wire(){
   Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){

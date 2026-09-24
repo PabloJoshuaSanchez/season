@@ -715,6 +715,50 @@
   details.fb summary{cursor:pointer;font-size:11px;color:var(--dim);}
   .step{font-size:11.5px;color:var(--dim);line-height:1.65;margin:0 0 10px;}
   .step b{color:var(--tx);}
+  .kpigrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px;margin-bottom:11px;}
+  .kpi{background:var(--s1);border:1px solid var(--ln);border-left:3px solid var(--ln2);border-radius:7px;padding:9px 11px;}
+  .kpi.good{border-left-color:var(--ok);} .kpi.bad{border-left-color:var(--urg);} .kpi.warn{border-left-color:var(--ac);}
+  .kl{font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--dimr);font-weight:700;}
+  .kv{font-family:var(--fd);font-size:22px;line-height:1.15;margin-top:3px;}
+  .ks{font-size:10px;color:var(--dim);font-family:var(--fm);}
+  .wtw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:70vh;overflow-y:auto;}
+  table.wt{border-collapse:separate;border-spacing:0;width:100%;font-size:12px;}
+  .wt th{position:sticky;top:0;z-index:2;background:var(--s2);font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;
+    color:var(--dimr);font-weight:700;padding:8px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--ln);cursor:pointer;user-select:none;}
+  .wt th.act{color:var(--ac);}
+  .wt td{padding:7px;text-align:right;font-family:var(--fm);white-space:nowrap;border-bottom:1px solid var(--ln);}
+  .wt th:first-child,.wt td:first-child{position:sticky;left:0;text-align:left;z-index:1;background:var(--s1);
+    font-family:var(--fb);min-width:118px;max-width:138px;overflow:hidden;text-overflow:ellipsis;box-shadow:1px 0 0 var(--ln);}
+  .wt th:first-child{z-index:3;background:var(--s2);}
+  .wt td:first-child b{font-weight:700;display:block;overflow:hidden;text-overflow:ellipsis;}
+  .wt td:first-child span{font-size:9.5px;color:var(--dimr);font-family:var(--fm);}
+  .pill{display:inline-block;min-width:34px;padding:2px 5px;border-radius:4px;font-weight:700;text-align:center;}
+  .flagt{font-size:8.5px;font-weight:800;color:var(--urg);margin-left:3px;}
+  .rbar{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11.5px;}
+  .rbar .rn{width:118px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
+  .rbar .rt{flex:1;display:flex;height:15px;background:var(--s3);border-radius:3px;overflow:hidden;min-width:60px;}
+  .rbar .rt span{height:100%;}
+  .rbar .rv{font-family:var(--fm);width:30px;text-align:right;font-size:11px;}
+  .legend{display:flex;gap:11px;flex-wrap:wrap;font-size:9.5px;color:var(--dim);margin-top:8px;}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px;}
+  .div{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11.5px;}
+  .div .dl{width:28px;font-weight:800;font-size:10px;}
+  .div .dt{flex:1;position:relative;height:16px;background:var(--s3);border-radius:3px;}
+  .div .dm{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--ln2);}
+  .div .df{position:absolute;top:2px;bottom:2px;border-radius:2px;}
+  .div .dv{font-family:var(--fm);width:44px;text-align:right;}
+  .blt{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11.5px;}
+  .blt .bn{width:112px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .blt .bt{flex:1;position:relative;height:14px;background:var(--s3);border-radius:3px;min-width:60px;}
+  .blt .bf{position:absolute;left:0;top:0;bottom:0;border-radius:3px;}
+  .blt .bm{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--tx);}
+  .blt .bv{font-family:var(--fm);width:42px;text-align:right;font-size:11px;}
+  .note{display:flex;gap:9px;padding:10px 13px;border-bottom:1px solid var(--ln);font-size:12px;line-height:1.5;}
+  .note:last-child{border-bottom:none;}
+  .note b{font-weight:700;}
+  svg.line text{font-family:var(--fm);font-size:9px;fill:var(--dimr);}
+  .stdbar{flex:1;height:6px;background:var(--s3);border-radius:2px;overflow:hidden;margin:0 6px;min-width:30px;}
+  .stdbar span{display:block;height:100%;background:var(--ac);opacity:.7;}
   @media(max-width:560px){.dealsides{grid-template-columns:1fr;} .arrow{display:none;}}
 </style>
 </head>
@@ -727,6 +771,7 @@
   </div>
   <div class="tabs" id="tabs">
     <div class="tab on" data-t="waivers">Waivers</div>
+    <div class="tab" data-t="insights">Insights</div>
     <div class="tab" data-t="trades">Trades</div>
     <div class="tab" data-t="league">League</div>
     <div class="tab" data-t="setup">Setup</div>
@@ -741,13 +786,49 @@
     <div class="cb"><div class="needs" id="needs"></div></div>
   </div>
   <div class="card">
-    <div class="ch"><h3>Best moves for your roster</h3><button class="info" data-info="adds">i</button>
-      <span class="cx" id="addsCx"></span></div>
-    <div class="cb tight" id="adds"></div>
+    <div class="ch"><h3>Rising free agents</h3><button class="info" data-info="rising">i</button></div>
+    <div class="cb"><div id="riseChart"></div></div>
   </div>
   <div class="card">
-    <div class="ch"><h3>Rising — claim before it shows</h3><button class="info" data-info="rising">i</button></div>
-    <div class="cb tight" id="rising"></div>
+    <div class="ch"><h3>Every available player</h3><button class="info" data-info="wtable">i</button>
+      <span class="cx" id="wvCx"></span></div>
+    <div class="cb" style="padding:9px 12px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--ln);">
+      <button class="btn s" data-wp="ALL">All</button><button class="btn s g" data-wp="QB">QB</button>
+      <button class="btn s g" data-wp="RB">RB</button><button class="btn s g" data-wp="WR">WR</button>
+      <button class="btn s g" data-wp="TE">TE</button>
+      <input class="sfi" id="wvSearch" type="text" placeholder="Search" style="flex:1;min-width:100px;min-height:32px;font-size:14px;padding:6px 9px;">
+      <label style="font-size:11px;color:var(--dim);display:flex;gap:5px;align-items:center;width:100%;">
+        <input type="checkbox" id="wvHide" checked> Hide injured reserve &amp; practice squad</label>
+    </div>
+    <div class="wtw"><table class="wt"><thead id="wtHead"></thead><tbody id="wtBody"></tbody></table></div>
+    <div class="cb" id="wtMore" style="padding:9px 12px;"></div>
+  </div>
+</div>
+
+<div class="panel" id="p-insights" hidden>
+  <div class="card">
+    <div class="cb" style="padding:10px 12px;"><select class="sfi" id="insTeam"></select></div>
+  </div>
+  <div class="kpigrid" id="insKpi"></div>
+  <div class="card">
+    <div class="ch"><h3>What stands out</h3></div>
+    <div class="cb tight" id="insNotes"></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Weekly points</h3><button class="info" data-info="weekly">i</button></div>
+    <div class="cb"><div id="insWeekly"></div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Strength by position</h3><button class="info" data-info="strength">i</button></div>
+    <div class="cb"><div id="insStrength"></div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Players against projection</h3><button class="info" data-info="pvabars">i</button></div>
+    <div class="cb"><div id="insPva"></div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Injuries &amp; role changes</h3></div>
+    <div class="cb tight" id="insFlags"></div>
   </div>
 </div>
 

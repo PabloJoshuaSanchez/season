@@ -6,7 +6,6 @@
 <title>Season War Room</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#0c0c0c">
-<meta name="color-scheme" content="dark">
 <link rel="icon" href="./favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -659,173 +658,168 @@
   .hhead .hc{font-weight:800;font-size:9px;}
   .dep{font-size:9px;color:var(--dimr);font-family:var(--fm);}
   .flag{font-size:9px;color:var(--urg);font-weight:700;}
+
+  .banner{padding:9px 13px;font-size:12px;line-height:1.5;border-bottom:1px solid var(--ln);}
+  .banner.warn{background:rgba(224,168,50,.12);color:var(--ac);}
+  .banner.bad{background:rgba(217,83,79,.14);color:#ef8b87;}
+  .banner a{color:inherit;font-weight:700;}
+  .needs{display:flex;gap:7px;flex-wrap:wrap;}
+  .need{flex:1;min-width:70px;background:var(--s2);border:1px solid var(--ln);border-top:3px solid;border-radius:6px;padding:8px 9px;}
+  .need .nl{font-size:9px;letter-spacing:1px;font-weight:800;}
+  .need .nv{font-family:var(--fm);font-size:15px;margin-top:2px;}
+  .need .ns{font-size:9.5px;color:var(--dimr);margin-top:1px;}
+  .swap{display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--ln);border-left:3px solid transparent;}
+  .swap:last-child{border-bottom:none;}
+  .swapm{flex:1;min-width:0;}
+  .swapin{font-size:13.5px;font-weight:700;}
+  .swapout{font-size:11px;color:var(--dim);margin-top:2px;}
+  .swapwhy{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.5;}
+  .swapwhy b{color:var(--tx);font-weight:600;}
+  .gain{font-family:var(--fm);font-size:17px;flex-shrink:0;text-align:right;color:var(--ok);}
+  .gainu{display:block;font-size:8px;color:var(--dimr);letter-spacing:.4px;}
+  .deal{padding:11px 13px;border-bottom:1px solid var(--ln);}
+  .deal:last-child{border-bottom:none;}
+  .dealh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px;}
+  .dealt{font-size:12.5px;font-weight:700;}
+  .dealrec{font-size:10px;color:var(--dimr);font-family:var(--fm);}
+  .dealsides{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;}
+  .side{background:var(--s2);border-radius:5px;padding:7px 9px;font-size:12px;}
+  .side .sl{font-size:8.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--dimr);font-weight:700;margin-bottom:3px;}
+  .side .sp{font-weight:700;line-height:1.35;}
+  .arrow{color:var(--dimr);font-size:13px;}
+  .dealnums{display:flex;gap:14px;margin-top:7px;font-size:10.5px;font-family:var(--fm);}
+  .up{color:var(--ok);} .dn{color:var(--urg);}
+  .mv{display:flex;align-items:center;gap:9px;padding:8px 13px;border-bottom:1px solid var(--ln);font-size:12px;}
+  .mv:last-child{border-bottom:none;}
+  .mvt{font-size:9px;font-weight:800;letter-spacing:.6px;width:44px;flex-shrink:0;}
+  .mvn{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mvm{font-size:10px;color:var(--dimr);font-family:var(--fm);flex-shrink:0;}
+  .std{display:flex;align-items:center;gap:9px;padding:7px 13px;border-bottom:1px solid var(--ln);font-size:12px;}
+  .std:last-child{border-bottom:none;}
+  .std.mine{background:var(--s2);}
+  .stdr{font-family:var(--fm);width:18px;color:var(--dimr);font-size:10.5px;}
+  .stdn{flex:1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .stdw{font-family:var(--fm);width:42px;text-align:right;}
+  .stdp{font-family:var(--fm);width:56px;text-align:right;color:var(--dim);font-size:11px;}
+  .hrow{display:flex;gap:3px;align-items:center;margin-bottom:3px;}
+  .hrow.mine .hlab{color:var(--ac);font-weight:700;}
+  .hlab{width:92px;flex-shrink:0;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .hc{flex:1;text-align:center;font-family:var(--fm);font-size:10px;padding:6px 2px;border-radius:3px;}
+  .hhead .hc{font-weight:800;font-size:9px;}
+  .ta{width:100%;background:var(--s3);border:1px solid var(--ln2);color:var(--tx);font-family:var(--fm);
+    font-size:11px;padding:10px;border-radius:5px;min-height:110px;resize:vertical;}
+  .stat{display:flex;gap:9px;align-items:flex-start;padding:10px 13px;border-bottom:1px solid var(--ln);font-size:12px;line-height:1.5;}
+  .stat:last-child{border-bottom:none;}
+  .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+  details.fb{margin-top:12px;}
+  details.fb summary{cursor:pointer;font-size:11px;color:var(--dim);}
+  .step{font-size:11.5px;color:var(--dim);line-height:1.65;margin:0 0 10px;}
+  .step b{color:var(--tx);}
+  @media(max-width:560px){.dealsides{grid-template-columns:1fr;} .arrow{display:none;}}
 </style>
 </head>
 <body>
 <div class="top"><div class="wrap">
   <div class="hdr">
-    <div class="hb"><div class="hl">Season</div><div class="hv" id="hSeason">2026</div></div>
-    <div class="hb"><div class="hl">Week</div><div class="hv ac" id="hWeek">1</div></div>
-    <div class="hclock">
-      <div class="hb"><div class="hl">Data built</div><div class="hn" id="hBuilt" style="font-size:13px">—</div></div>
-    </div>
-    <div class="wkpick" id="wkPick"></div>
+    <div class="hb"><div class="hl">Week</div><div class="hv ac" id="hWeek">—</div></div>
+    <div class="hclock"><div class="hb"><div class="hl">Your team</div><div class="hn" id="hTeam">—</div></div></div>
+    <div class="hb"><div class="hl">League data</div><div class="hn" id="hSrc" style="font-size:12px">—</div></div>
   </div>
   <div class="tabs" id="tabs">
-    <div class="tab on" data-t="dash">Dashboard</div>
-    <div class="tab" data-t="league">League</div>
-    <div class="tab" data-t="waivers">Waivers</div>
+    <div class="tab on" data-t="waivers">Waivers</div>
     <div class="tab" data-t="trades">Trades</div>
-    <div class="tab" data-t="stats">Stats</div>
+    <div class="tab" data-t="league">League</div>
     <div class="tab" data-t="setup">Setup</div>
   </div>
 </div></div>
-
 <div id="banners"></div>
 <div class="wrap">
 
-<!-- ══ DASHBOARD ══ -->
-<div class="panel" id="p-dash">
+<div class="panel" id="p-waivers">
   <div class="card">
-    <div class="ch"><h3>Team</h3><button class="info" data-info="kpi">i</button>
-      <select class="sfi" id="dashTeamSel" style="width:auto;margin-left:auto;min-height:32px;font-size:13px;padding:6px 9px;"></select></div>
-    <div class="cb"><div class="kpigrid" id="kpis"></div></div>
+    <div class="ch"><h3>Where you're thin</h3><button class="info" data-info="needs">i</button></div>
+    <div class="cb"><div class="needs" id="needs"></div></div>
   </div>
-  <div class="cols">
-    <div>
-      <div class="card">
-        <div class="ch"><h3>Projected vs actual</h3><button class="info" data-info="pva">i</button>
-          <span class="seg" style="margin-left:auto;"><button id="pvaPts" class="on">Points</button><button id="pvaPct">%</button></span></div>
-        <div class="cb tight" id="pvaList"></div>
-      </div>
-      <div class="card">
-        <div class="ch"><h3>Lineup</h3></div>
-        <div class="cb tight" id="lineup"></div>
-      </div>
-      <div class="card">
-        <div class="ch"><h3>Bench</h3></div>
-        <div class="cb tight" id="benchList"></div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <div class="ch"><h3>Week <span id="sbWeek">1</span></h3><span class="cx" id="sbCx"></span></div>
-        <div class="cb tight" id="scoreboard"></div>
-      </div>
-    </div>
+  <div class="card">
+    <div class="ch"><h3>Best moves for your roster</h3><button class="info" data-info="adds">i</button>
+      <span class="cx" id="addsCx"></span></div>
+    <div class="cb tight" id="adds"></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Rising — claim before it shows</h3><button class="info" data-info="rising">i</button></div>
+    <div class="cb tight" id="rising"></div>
   </div>
 </div>
 
-<!-- ══ LEAGUE ══ -->
-<div class="panel" id="p-league" hidden>
-  <div class="card">
-    <div class="ch"><h3>Positional heat map</h3><button class="info" data-info="heat">i</button></div>
-    <div class="cb"><div id="heatGrid"></div></div>
-  </div>
-  <div class="card">
-    <div class="ch"><h3>Team scorecards</h3><button class="info" data-info="league">i</button></div>
-    <div class="cb"><div class="tcards" id="teamCards"></div></div>
-  </div>
-  <div class="card">
-    <div class="ch"><h3>Against projection, league-wide</h3>
-      <span class="cx">toggle points/% on the dashboard</span></div>
-    <div class="cb tight" id="leagueTrend"></div>
-  </div>
-</div>
-
-<!-- ══ WAIVERS ══ -->
-<div class="panel" id="p-waivers" hidden>
-  <div class="card">
-    <div class="ch"><h3>Rising value</h3><button class="info" data-info="rising">i</button>
-      <span class="cx">early detection</span></div>
-    <div class="cb tight" id="risingList"></div>
-  </div>
-  <div class="card">
-    <div class="cb" style="padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-      <button class="btn s" data-wv="ALL" id="wvALL">All</button>
-      <button class="btn s g" data-wv="QB">QB</button>
-      <button class="btn s g" data-wv="RB">RB</button>
-      <button class="btn s g" data-wv="WR">WR</button>
-      <button class="btn s g" data-wv="TE">TE</button>
-      <input class="sfi" id="wvSearch" type="text" placeholder="Search..." style="flex:1;min-width:120px;min-height:34px;font-size:14px;padding:7px 10px;">
-      <button class="info" data-info="waivers">i</button>
-    </div>
-    <div class="ch"><h3>Best available</h3><span class="cx" id="wvCx"></span></div>
-    <div class="cb tight" id="wvList"></div>
-  </div>
-  <div class="card">
-    <div class="ch"><h3>Who you'd drop</h3></div>
-    <div class="cb tight" id="dropList"></div>
-  </div>
-</div>
-
-<!-- ══ TRADES ══ -->
 <div class="panel" id="p-trades" hidden>
   <div class="card">
-    <div class="ch"><h3>Your position</h3><button class="info" data-info="trades">i</button>
+    <div class="ch"><h3>Deals that help both sides</h3><button class="info" data-info="trades">i</button>
       <span class="cx" id="tradeCx"></span></div>
-  </div>
-  <div class="cols">
-    <div><div class="card">
-      <div class="ch"><h3>They might want</h3></div>
-      <div class="cb tight" id="tradeGive"></div>
-    </div></div>
-    <div><div class="card">
-      <div class="ch"><h3>You might want</h3></div>
-      <div class="cb tight" id="tradeGet"></div>
-    </div></div>
+    <div class="cb tight" id="deals"></div>
   </div>
 </div>
 
-<!-- ══ STATS ══ -->
-<div class="panel" id="p-stats" hidden>
+<div class="panel" id="p-league" hidden>
+  <div class="card" id="standCard">
+    <div class="ch"><h3>Standings</h3><button class="info" data-info="standings">i</button></div>
+    <div class="cb tight" id="standings"></div>
+  </div>
   <div class="card">
-    <div class="cb" style="padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-      <button class="btn s" data-st="QB" id="stQB">QB</button>
-      <button class="btn s g" data-st="RB">RB</button>
-      <button class="btn s g" data-st="WR">WR</button>
-      <button class="btn s g" data-st="TE">TE</button>
-      <input class="sfi" id="stSearch" type="text" placeholder="Search..." style="flex:1;min-width:120px;min-height:34px;font-size:14px;padding:7px 10px;">
-      <span class="seg"><button id="stMine" class="on">Everyone</button><button id="stRost">Rostered</button></span>
-      <button class="info" data-info="stats">i</button>
-    </div>
-    <div class="tsc" style="max-height:72vh;"><table><thead id="stHead"></thead><tbody id="stBody"></tbody></table></div>
+    <div class="ch"><h3>Recent roster moves</h3><button class="info" data-info="moves">i</button></div>
+    <div class="cb tight" id="moves"></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Needs across the league</h3><button class="info" data-info="heat">i</button></div>
+    <div class="cb"><div id="heat"></div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Against projection</h3><button class="info" data-info="pva">i</button></div>
+    <div class="cb tight" id="pva"></div>
   </div>
 </div>
 
-<!-- ══ SETUP ══ -->
 <div class="panel" id="p-setup" hidden>
   <div class="card">
-    <div class="ch"><h3>Roster source</h3></div>
+    <div class="ch"><h3>League connection</h3></div>
+    <div class="cb tight" id="connStatus"></div>
+  </div>
+  <div class="card">
+    <div class="ch"><h3>Load your league from ESPN</h3><button class="info" data-info="paste">i</button></div>
     <div class="cb">
-      <div style="font-size:11.5px;color:var(--dim);line-height:1.6;margin-bottom:10px;">
-        If ESPN sync is configured it wins and this is only a fallback. Otherwise paste the
-        <b>CSV export</b> from the draft app.
+      <p class="step"><b>1.</b> Enter your league ID &mdash; it's the <b>leagueId=</b> number in your ESPN league URL.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+        <input class="sfi" id="lid" type="text" inputmode="numeric" placeholder="League ID" style="flex:1;min-width:130px;">
+        <button class="btn s p" id="openEspn">Open my league data</button>
       </div>
-      <textarea class="ta" id="impBox" placeholder="pick,round,team,player,pos,nfl_team,bye,adp,proj"></textarea>
+      <p class="step"><b>2.</b> A page of raw data opens. You're already logged in to ESPN, so it shows your
+        private league. <b>Select all, copy.</b></p>
+      <p class="step"><b>3.</b> Paste it here and press Load.</p>
+      <textarea class="ta" id="espnBox" placeholder='{"gameId":1,"id":...,"teams":[...'></textarea>
       <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center;">
-        <button class="btn s p" id="impRun">Import</button>
-        <button class="btn s g" id="impClear">Clear</button>
-        <select class="sfi" id="myTeamSel" style="width:auto;min-height:34px;font-size:13px;padding:6px 9px;"></select>
-        <span id="impMsg" style="font-size:11px;color:var(--dim);"></span>
+        <button class="btn s p" id="espnLoad">Load</button>
+        <span id="espnMsg" style="font-size:11px;color:var(--dim);"></span>
       </div>
+      <p class="step" style="margin-top:12px;margin-bottom:0;">Takes under a minute. Do it after waivers clear
+        each week, or any time you want fresh rosters. Easier on a laptop than a phone.</p>
+      <details class="fb"><summary>Or paste the draft app CSV instead (pre-draft rosters only)</summary>
+        <textarea class="ta" id="csvBox" style="margin-top:8px" placeholder="pick,round,team,player,pos,..."></textarea>
+        <button class="btn s" id="csvLoad" style="margin-top:7px;">Load CSV</button>
+      </details>
     </div>
   </div>
   <div class="card">
-    <div class="ch"><h3>League scoring</h3><button class="info" data-info="scoring">i</button></div>
-    <div class="cb"><div id="scoreGrid" class="mxgrid"></div></div>
+    <div class="ch"><h3>Which team is yours</h3></div>
+    <div class="cb"><select class="sfi" id="mySel"></select></div>
   </div>
   <div class="card">
     <div class="ch"><h3>Appearance</h3></div>
-    <div class="cb">
-      <div class="sfl">Theme</div><div class="thgrid" id="thGrid"></div>
+    <div class="cb"><div class="sfl">Theme</div><div class="thgrid" id="thGrid"></div>
       <div class="sfl" style="margin-top:14px;">Text size</div>
       <span class="seg"><button data-sz="0.92">S</button><button data-sz="1" class="on">M</button>
-        <button data-sz="1.12">L</button><button data-sz="1.28">XL</button></span>
-    </div>
+        <button data-sz="1.12">L</button><button data-sz="1.28">XL</button></span></div>
   </div>
   <div class="card">
-    <div class="ch"><h3>Data</h3><button class="info" data-info="sources">i</button></div>
+    <div class="ch"><h3>Data</h3></div>
     <div class="cb"><div id="srcInfo" style="font-size:11.5px;color:var(--dim);line-height:1.7;"></div></div>
   </div>
 </div>

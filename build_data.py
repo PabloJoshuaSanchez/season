@@ -262,34 +262,43 @@ def defense_ratios(weekly, season_avg):
 
 def depth_chart(season):
     """
-    Latest depth-chart snapshot per player, plus roster status.
+    Current depth-chart rank per player, the rank about a week earlier, and
+    roster status.
 
-    This is the fix for the biggest weakness in projecting off last season:
-    a player's old numbers describe the role he had, not the one he has. Carson
-    Wentz put up starter numbers filling in during 2025 and is QB3 in Minnesota
-    now; Tyler Shough is New Orleans' QB1. Without this the model ranks them
-    backwards.
+    Last season's numbers describe the job a player HAD; the depth chart says
+    what he has now. The file is timestamped, so comparing today's snapshot with
+    one from a week ago shows who is climbing - a backup moving up is one of the
+    earliest signs of rising value, well before it reaches the box score.
     """
     txt = fetch(f"{BASE}/depth_charts/depth_charts_{season}.csv")
     ranks = {}
     if txt:
-        newest = {}
+        snaps = defaultdict(list)      # player -> [(dt, rank, team, pos)]
+        latest_dt = ""
         for r in rows(txt):
             if r.get("pos_abb") not in POS:
                 continue
-            k = key(r.get("player_name", ""))
+            try:
+                rk = int(float(r.get("pos_rank") or 99))
+            except Exception:
+                rk = 99
             dt = r.get("dt", "")
-            if k not in newest or dt > newest[k][0]:
-                try:
-                    rk = int(float(r.get("pos_rank") or 99))
-                except Exception:
-                    rk = 99
-                newest[k] = (dt, rk, r.get("team", ""), r.get("pos_abb", ""))
-        for k, v in newest.items():
-            ranks[k] = {"rank": v[1], "team": v[2], "pos": v[3]}
+            snaps[key(r.get("player_name", ""))].append((dt, rk, r.get("team", ""), r.get("pos_abb", "")))
+            if dt > latest_dt:
+                latest_dt = dt
+        try:
+            cutoff = (datetime.datetime.fromisoformat(latest_dt[:19]) -
+                      datetime.timedelta(days=6)).isoformat()
+        except Exception:
+            cutoff = ""
+        for k, lst in snaps.items():
+            lst.sort()
+            now = lst[-1]
+            before = [x for x in lst if cutoff and x[0] <= cutoff]
+            ranks[k] = {"rank": now[1], "team": now[2], "pos": now[3],
+                        "prev": before[-1][1] if before else None}
     else:
-        warnings.append(f"no {season} depth charts - role adjustments are off, so "
-                        "players who changed jobs will look like their old selves")
+        warnings.append(f"no {season} depth charts - role adjustments are off")
 
     txt = fetch(f"{BASE}/rosters/roster_{season}.csv")
     status = {}
@@ -297,8 +306,7 @@ def depth_chart(season):
         for r in rows(txt):
             if r.get("position") not in POS:
                 continue
-            status[key(r.get("full_name", ""))] = {
-                "st": r.get("status", ""), "team": r.get("team", "")}
+            status[key(r.get("full_name", ""))] = {"st": r.get("status", ""), "team": r.get("team", "")}
     return ranks, status
 
 
@@ -467,7 +475,9 @@ def espn_league():
     n = sum(len(t["roster"]["entries"]) for t in teams)
     ESPN_STATUS.update(status="connected", detail=f"{len(teams)} teams, {n} rostered players")
     print(f"  ESPN: {len(teams)} teams, {n} rostered")
+    status = raw.get("status") or {}
     return {"teams": teams, "schedule": sched, "myTeamId": mine,
+            "status": {"currentMatchupPeriod": status.get("currentMatchupPeriod")},
             "fetched": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
 
 
@@ -523,6 +533,8 @@ def main():
         d = depth.get(k)
         if d:
             rec["d"] = d["rank"]
+            if d.get("prev") is not None and d["prev"] != d["rank"]:
+                rec["pd"] = d["prev"]            # rank a week ago, only when it moved
             if d["team"]:
                 rec["team"] = d["team"]          # depth chart is the current truth
         s = status.get(k)
@@ -536,6 +548,24 @@ def main():
             rec["t"] = src
             rec["tsrc"] = SEASON if k in cur_tot else PRIOR
         players[k] = rec
+
+    # Drop anyone no longer in the NFL. Last season's stats keep retired and
+    # unsigned players in the pool - Nick Chubb and Austin Ekeler showed up as
+    # waiver adds - so a player now has to be on a current roster, on a depth
+    # chart, or have played this season. Guarded so a failed roster download
+    # can't wipe the whole pool.
+    removed = []
+    if len(status) > 500 and len(depth) > 500:
+        for k in list(players):
+            p = players[k]
+            on_team = k in status or k in depth
+            st = (status.get(k) or {}).get("st", "")
+            if (not on_team and not p.get("s")) or st in ("CUT", "RET", "EXE"):
+                removed.append(p["name"])
+                del players[k]
+    else:
+        warnings.append("roster file looked incomplete - not filtering out released players this run")
+    print(f"  removed {len(removed)} players not on an NFL roster (e.g. {', '.join(removed[:4])})")
 
     proj = {}
     for wk in range(cur_week, min(cur_week + 4, 19)):

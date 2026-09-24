@@ -387,53 +387,88 @@ def project_week(players, dfn, games, wk):
 
 
 # ── ESPN league sync (optional) ────────────────────────────────────────────
-# Reads your real league: rosters, matchups. Needs three repo secrets. Entirely
-# optional - without it the app uses the CSV you paste in, and everything except
-# live free-agent status still works.
+# Output is a TRIMMED copy of ESPN's own JSON shape, not a reinterpretation of
+# it. The app has one parser for that shape and uses it for both this automated
+# path and for JSON you paste in by hand from your own logged-in browser, so the
+# two routes can never disagree about what a roster means.
+ESPN_STATUS = {"status": "not configured", "detail": ""}
+
+
 def espn_league():
     lid = os.environ.get("ESPN_LEAGUE_ID", "").strip()
     s2 = os.environ.get("ESPN_S2", "").strip()
     swid = os.environ.get("ESPN_SWID", "").strip()
-    if not (lid and s2 and swid):
+    missing = [n for n, v in (("ESPN_LEAGUE_ID", lid), ("ESPN_S2", s2), ("ESPN_SWID", swid)) if not v]
+    if missing:
+        ESPN_STATUS.update(status="not configured",
+                           detail="missing secret(s): " + ", ".join(missing))
         return None
+    if not swid.startswith("{"):
+        swid = "{" + swid.strip("{}") + "}"
     url = (f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{SEASON}"
-           f"/segments/0/leagues/{lid}?view=mRoster&view=mTeam&view=mSettings&view=mMatchupScore")
+           f"/segments/0/leagues/{lid}?view=mTeam&view=mRoster&view=mMatchupScore&view=mSettings")
     try:
         req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 season-war-room",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) season-war-room",
             "Cookie": f"espn_s2={s2}; SWID={swid}",
             "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=60) as r:
-            raw = json.loads(r.read().decode("utf-8", "replace"))
+            body = r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        hint = {401: "cookies rejected - espn_s2 or SWID is wrong or expired",
+                403: "ESPN refused the request - cookies expired, or it is blocking GitHub's servers",
+                404: "league not found - check ESPN_LEAGUE_ID and that the season is " + str(SEASON)
+                }.get(e.code, "unexpected response")
+        ESPN_STATUS.update(status=f"HTTP {e.code}", detail=hint)
+        warnings.append(f"ESPN sync failed: HTTP {e.code} ({hint}). Paste league JSON in Setup instead.")
+        return None
     except Exception as e:
-        warnings.append(f"ESPN sync failed ({e}) - using the roster you imported by hand")
+        ESPN_STATUS.update(status="network error", detail=str(e)[:160])
+        warnings.append(f"ESPN sync failed ({e}). Paste league JSON in Setup instead.")
         return None
     try:
-        teams, rosters = {}, {}
-        for t in raw.get("teams", []):
-            nm = (t.get("name") or
-                  f"{t.get('location','')} {t.get('nickname','')}".strip() or f"Team {t.get('id')}")
-            teams[t.get("id")] = nm
-            names = []
-            for e in (t.get("roster", {}) or {}).get("entries", []):
-                pl = ((e.get("playerPoolEntry") or {}).get("player") or {})
-                if pl.get("fullName"):
-                    names.append(pl["fullName"])
-            rosters[nm] = names
-        sched = []
-        for m in raw.get("schedule", []):
-            if m.get("matchupPeriodId") is None:
-                continue
-            a, h = m.get("away") or {}, m.get("home") or {}
-            sched.append({"w": m["matchupPeriodId"],
-                          "a": teams.get(a.get("teamId")), "h": teams.get(h.get("teamId")),
-                          "as": round(a.get("totalPoints", 0) or 0, 1),
-                          "hs": round(h.get("totalPoints", 0) or 0, 1)})
-        print(f"  ESPN: {len(rosters)} teams, {sum(len(v) for v in rosters.values())} rostered")
-        return {"rosters": rosters, "matchups": sched}
-    except Exception as e:
-        warnings.append(f"ESPN returned data that could not be read ({e})")
+        raw = json.loads(body)
+    except Exception:
+        ESPN_STATUS.update(status="bad response",
+                           detail="ESPN returned something that is not JSON - usually a login page, "
+                                  "which means the cookies were not accepted")
+        warnings.append("ESPN returned a login page instead of league data - cookies not accepted.")
         return None
+
+    keepP = ("id", "fullName", "defaultPositionId", "proTeamId", "injuryStatus")
+    teams = []
+    for t in raw.get("teams", []):
+        entries = []
+        for e in (t.get("roster") or {}).get("entries", []):
+            pl = ((e.get("playerPoolEntry") or {}).get("player") or {})
+            own = pl.get("ownership") or {}
+            entries.append({
+                "playerId": e.get("playerId"),
+                "lineupSlotId": e.get("lineupSlotId"),
+                "acquisitionType": e.get("acquisitionType"),
+                "acquisitionDate": e.get("acquisitionDate"),
+                "playerPoolEntry": {"player": dict({k: pl.get(k) for k in keepP},
+                    ownership={"percentOwned": own.get("percentOwned"),
+                               "percentChange": own.get("percentChange")})}})
+        teams.append({"id": t.get("id"), "name": t.get("name"), "location": t.get("location"),
+                      "nickname": t.get("nickname"), "abbrev": t.get("abbrev"),
+                      "owners": t.get("owners"), "record": t.get("record"),
+                      "roster": {"entries": entries}})
+    sched = [{"matchupPeriodId": m.get("matchupPeriodId"),
+              "away": {"teamId": (m.get("away") or {}).get("teamId"),
+                       "totalPoints": (m.get("away") or {}).get("totalPoints")},
+              "home": {"teamId": (m.get("home") or {}).get("teamId"),
+                       "totalPoints": (m.get("home") or {}).get("totalPoints")}}
+             for m in raw.get("schedule", [])]
+    mine = None
+    for t in teams:
+        if swid in (t.get("owners") or []):
+            mine = t["id"]
+    n = sum(len(t["roster"]["entries"]) for t in teams)
+    ESPN_STATUS.update(status="connected", detail=f"{len(teams)} teams, {n} rostered players")
+    print(f"  ESPN: {len(teams)} teams, {n} rostered")
+    return {"teams": teams, "schedule": sched, "myTeamId": mine,
+            "fetched": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
 
 
 # ── assemble ───────────────────────────────────────────────────────────────
@@ -534,6 +569,7 @@ def main():
             "ppc": ppc, "ppt": ppt, "ppa": ppa, "scoring": SCORING,
             "defense_season": dfn_src,
             "depth": len(depth), "roster_status": len(status),
+            "espn": ESPN_STATUS,
             "tot_cols": ["g","cmp","att","pass_yd","pass_td","int","car","rush_yd",
                          "rush_td","tgt","rec","rec_yd","rec_td","pts"],
             "warnings": warnings,
@@ -554,7 +590,7 @@ def main():
     print(f"  players {len(players)} | defences {len(dfn)} | games {len(games)}")
     print(f"  depth-chart ranks {len(depth)} | roster statuses {len(status)}")
     print(f"  projections for weeks {sorted(proj)} | history {sorted(hist) or 'none yet'}")
-    print(f"  ESPN league: {'connected' if league else 'not configured'}")
+    print(f"  ESPN league: {ESPN_STATUS['status']} - {ESPN_STATUS['detail']}")
     print(f"  season {SEASON} week {cur_week} | weeks played {played or 'none'}")
     print(f"  opportunity values: {ppc}/carry  {ppt}/target  {ppa}/pass attempt")
     print(f"  scoring: {SCORING['rec']} per reception, {SCORING['int']} per interception")
